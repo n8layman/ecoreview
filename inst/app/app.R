@@ -295,10 +295,19 @@ server <- function(input, output, session) {
     doc_metadata_original = NULL
   )
 
-  # Define volumes for shinyFiles (starts in project root, allows browsing elsewhere)
-  project_root <- detect_project_root()
-  message("Project root detected: ", project_root)
-  message("Current working directory: ", getwd())
+  # Define volumes for shinyFiles (starts in user's working directory)
+  # Use the working directory captured by run_app(), or fall back to detection
+  user_wd <- getOption("ecoreview.user_working_dir", NULL)
+
+  if (is.null(user_wd)) {
+    # Fallback to detection if option not set (e.g., running app directly)
+    project_root <- detect_project_root()
+    message("No user working directory stored, detected: ", project_root)
+  } else {
+    project_root <- user_wd
+    message("Using user working directory: ", project_root)
+  }
+  message("App working directory: ", getwd())
 
   volumes <- c(
     "Project" = project_root,

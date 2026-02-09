@@ -36,12 +36,15 @@ run_app <- function(
   ...
 ) {
   # Store configuration in options for the app to access
+  # Capture user's working directory before app changes it
+  user_wd <- getwd()
 
   options(
     ecoreview.title = title,
     ecoreview.app_name = app_name,
     ecoreview.github_url = github_url,
-    ecoreview.export_prefix = export_prefix
+    ecoreview.export_prefix = export_prefix,
+    ecoreview.user_working_dir = user_wd
   )
 
  # Find the app directory
