@@ -296,8 +296,12 @@ server <- function(input, output, session) {
   )
 
   # Define volumes for shinyFiles (starts in project root, allows browsing elsewhere)
+  project_root <- detect_project_root()
+  message("Project root detected: ", project_root)
+  message("Current working directory: ", getwd())
+
   volumes <- c(
-    "Project" = detect_project_root(),
+    "Project" = project_root,
     Home = fs::path_home(),
     Documents = file.path(fs::path_home(), "Documents"),
     Desktop = file.path(fs::path_home(), "Desktop"),
