@@ -1238,7 +1238,12 @@ server <- function(input, output, session) {
               shiny::tableOutput("fieldMetricsTable")
             ),
             shiny::column(6,
-              shiny::tableOutput("editSeverityTable")
+              shiny::tableOutput("editSeverityTable"),
+              shiny::p(style = "font-size: 0.85em; color: #6c757d; margin-top: 10px;",
+                shiny::tags$strong("Major edits:"), " Unique or required fields (e.g., species names, dates)",
+                shiny::tags$br(),
+                shiny::tags$strong("Minor edits:"), " Optional descriptive fields (e.g., page numbers)"
+              )
             )
           ),
           shiny::hr(),
@@ -1447,26 +1452,48 @@ server <- function(input, output, session) {
 
     col_acc_df <- data.frame(
       Column = names(acc$column_accuracy),
-      Accuracy = acc$column_accuracy * 100
+      Accuracy = acc$column_accuracy * 100,
+      stringsAsFactors = FALSE
     )
 
-    col_acc_df <- col_acc_df[order(col_acc_df$Accuracy), ]
-    col_acc_df$Column <- factor(col_acc_df$Column, levels = col_acc_df$Column)
+    # Load schema to identify major vs minor fields
+    major_fields <- character(0)
+    tryCatch({
+      schema_path <- ecoextract:::load_config_file(NULL, "schema.json", "extdata", return_content = FALSE)
+      schema_json <- paste(readLines(schema_path, warn = FALSE), collapse = "\n")
+      schema_list <- jsonlite::fromJSON(schema_json, simplifyVector = FALSE)
+      record_schema <- schema_list$properties$records$items
+      unique_fields <- record_schema[["x-unique-fields"]]
+      required_fields <- record_schema[["required"]]
+      major_fields <- unique(c(unique_fields, required_fields))
+    }, error = function(e) {
+      # If schema can't be loaded, all fields treated as minor
+    })
 
-    col_acc_df$color_val <- sqrt(100 - col_acc_df$Accuracy)
+    # Classify fields and create labels
+    col_acc_df$is_major <- col_acc_df$Column %in% major_fields
+    col_acc_df$label <- ifelse(col_acc_df$is_major,
+                                paste0(col_acc_df$Column, " [MAJOR]"),
+                                col_acc_df$Column)
+    col_acc_df$color <- ifelse(col_acc_df$is_major, "#dc3545", "#6c757d")  # Red for major, gray for minor
+
+    col_acc_df <- col_acc_df[order(col_acc_df$Accuracy), ]
+    col_acc_df$label <- factor(col_acc_df$label, levels = col_acc_df$label)
 
     plotly::plot_ly(col_acc_df,
-            y = ~Column,
+            y = ~label,
             x = ~Accuracy,
             type = "bar",
             orientation = "h",
             marker = list(
-              color = ~color_val,
-              colorscale = "Viridis",
-              reversescale = TRUE,
-              showscale = FALSE
+              color = ~color,
+              line = list(width = 1, color = "#ffffff")
             ),
-            hovertemplate = "%{y}: %{x:.1f}%<extra></extra>",
+            hovertemplate = paste0(
+              "%{y}<br>",
+              "Accuracy: %{x:.1f}%<br>",
+              "<extra></extra>"
+            ),
             showlegend = FALSE) %>%
       plotly::layout(
         xaxis = list(title = "Accuracy (%)", range = c(0, 100)),
@@ -1480,7 +1507,7 @@ server <- function(input, output, session) {
                showarrow = FALSE, xanchor = "left", yanchor = "bottom",
                font = list(size = 10, color = "gray"))
         ),
-        margin = list(l = 150)
+        margin = list(l = 200)
       )
   })
 
