@@ -256,8 +256,13 @@ server <- function(input, output, session) {
     doc_metadata_original = NULL
   )
 
-  # Define volumes for shinyFiles (only app directory)
-  volumes <- c(wd = getwd())
+  # Define volumes for shinyFiles (full filesystem access)
+  volumes <- c(
+    Home = fs::path_home(),
+    Documents = file.path(fs::path_home(), "Documents"),
+    Desktop = file.path(fs::path_home(), "Desktop"),
+    Root = "/"
+  )
 
   # Setup shinyFiles for database file browsing
   shinyFiles::shinyFileChoose(input, "dbFileBrowse", roots = volumes, session = session,
@@ -361,6 +366,12 @@ server <- function(input, output, session) {
           shiny::hr(style = "margin: 20px 0;"),
 
           shiny::h5("Option 2: Upload Database File"),
+          shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 10px; margin-bottom: 10px;",
+            shiny::tags$i(class = "fas fa-exclamation-triangle", style = "color: #856404; margin-right: 5px;"),
+            shiny::span(style = "color: #856404; font-size: 0.9em;",
+              shiny::strong("Warning:"), " Upload creates a temporary copy. Download the database when finished to save your changes."
+            )
+          ),
           shiny::fileInput("dbFileModal", NULL,
                     accept = c(".db", ".sqlite", ".sqlite3"),
                     width = "100%",
@@ -368,7 +379,10 @@ server <- function(input, output, session) {
 
           shiny::hr(style = "margin: 20px 0;"),
 
-          shiny::h5("Option 3: Enter Database URL"),
+          shiny::h5("Option 3: Enter Database URL or Path"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            "For remote databases (https://...) or if you prefer to enter a path manually."
+          ),
           shiny::textInput("dbPathModal", NULL,
                     placeholder = "https://example.com/database.db",
                     width = "100%"),
@@ -452,6 +466,12 @@ server <- function(input, output, session) {
         shiny::hr(style = "margin: 20px 0;"),
 
         shiny::h5("Option 2: Upload Database File"),
+        shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 10px; margin-bottom: 10px;",
+          shiny::tags$i(class = "fas fa-exclamation-triangle", style = "color: #856404; margin-right: 5px;"),
+          shiny::span(style = "color: #856404; font-size: 0.9em;",
+            shiny::strong("Warning:"), " Upload creates a temporary copy. Download the database when finished to save your changes."
+          )
+        ),
         shiny::fileInput("dbFileChange", NULL,
                   accept = c(".db", ".sqlite", ".sqlite3"),
                   width = "100%",
@@ -459,7 +479,10 @@ server <- function(input, output, session) {
 
         shiny::hr(style = "margin: 20px 0;"),
 
-        shiny::h5("Option 3: Enter Database URL"),
+        shiny::h5("Option 3: Enter Database URL or Path"),
+        shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+          "For remote databases (https://...) or if you prefer to enter a path manually."
+        ),
         shiny::textInput("dbPathChange", NULL,
                   placeholder = "https://example.com/database.db",
                   width = "100%"),

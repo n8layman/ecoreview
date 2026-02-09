@@ -30,6 +30,7 @@ Imports:
     htmltools,
     magrittr,
     readr,
+    fs,
     ecoextract
 Suggests:
     tokenizers,
