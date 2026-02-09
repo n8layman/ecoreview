@@ -1,0 +1,21 @@
+# R
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+*.Rproj
+
+# Package build
+*.tar.gz
+*.Rcheck/
+man/*.Rd
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Temp files
+www/temp_*.pdf

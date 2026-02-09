@@ -1,0 +1,37 @@
+Package: ecoreview
+Title: Interactive Review Interface for Ecological Data Extraction
+Version: 0.1.0
+Authors@R:
+    person("Nathan", "Layman", , "nathan.layman@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: Provides an interactive Shiny interface for human validation of
+    ecological interaction data extracted from scientific literature. Works with
+    databases created by the ecoextract package, allowing researchers to review
+    OCR text alongside extracted records, edit fields, track changes with full
+    audit trails, and calculate extraction accuracy metrics.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Imports:
+    shiny,
+    DT,
+    shinyjs,
+    shinyFiles,
+    plotly,
+    DBI,
+    RSQLite,
+    dplyr,
+    tibble,
+    jsonlite,
+    commonmark,
+    stringr,
+    stringdist,
+    htmltools,
+    magrittr,
+    readr,
+    ecoextract
+Suggests:
+    tokenizers,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
