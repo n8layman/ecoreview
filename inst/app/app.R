@@ -256,8 +256,9 @@ server <- function(input, output, session) {
     doc_metadata_original = NULL
   )
 
-  # Define volumes for shinyFiles (full filesystem access)
+  # Define volumes for shinyFiles (starts in R project, allows browsing elsewhere)
   volumes <- c(
+    "R Project" = getwd(),
     Home = fs::path_home(),
     Documents = file.path(fs::path_home(), "Documents"),
     Desktop = file.path(fs::path_home(), "Desktop"),
@@ -1156,7 +1157,13 @@ server <- function(input, output, session) {
       title = "Extraction Accuracy Metrics",
       size = "l",
       easyClose = TRUE,
-      footer = shiny::modalButton("Close"),
+      footer = shiny::tagList(
+        if (has_verified) {
+          shiny::downloadButton("exportAccuracyBtn", "Export Metrics CSV",
+                         class = "btn-primary")
+        },
+        shiny::modalButton("Close")
+      ),
 
       if (has_verified) {
         shiny::div(
@@ -1172,6 +1179,10 @@ server <- function(input, output, session) {
           ),
           shiny::hr(),
           shiny::h4("Column-Level Accuracy"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            shiny::tags$i(class = "fas fa-info-circle", style = "margin-right: 5px;"),
+            "Hover over the chart to reveal the toolbar. Click the camera icon to download as PNG."
+          ),
           plotly::plotlyOutput("columnAccuracyPlot", height = "300px"),
           shiny::hr(),
           shiny::h4("Edit Counts by Column"),
@@ -1293,6 +1304,52 @@ server <- function(input, output, session) {
     col_edits_df <- col_edits_df[order(-col_edits_df$`Edit Count`), ]
     col_edits_df
   }, striped = TRUE, hover = TRUE, width = "100%")
+
+  # Accuracy metrics export handler
+  output$exportAccuracyBtn <- shiny::downloadHandler(
+    filename = function() {
+      paste0(export_prefix, "_accuracy_metrics_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
+    },
+    content = function(file) {
+      acc <- accuracy_data()
+      shiny::req(acc$verified_documents > 0)
+
+      # Combine all metrics into a single data frame
+      metrics_df <- data.frame(
+        Section = c(
+          "Overall Metrics", "Overall Metrics", "Overall Metrics",
+          rep("Summary", 7),
+          rep("Column Accuracy", length(acc$column_accuracy)),
+          rep("Column Edits", length(acc$column_edits))
+        ),
+        Metric = c(
+          "Precision", "Recall", "F1 Score",
+          "Verified Documents", "Total Records", "Model Extracted",
+          "Correct (unchanged)", "Edited", "Deleted (false positives)",
+          "Human Added (missed)",
+          names(acc$column_accuracy),
+          names(acc$column_edits)
+        ),
+        Value = c(
+          sprintf("%.1f%%", acc$precision * 100),
+          sprintf("%.1f%%", acc$recall * 100),
+          sprintf("%.1f%%", acc$f1_score * 100),
+          as.character(acc$verified_documents),
+          as.character(acc$verified_records),
+          as.character(acc$model_extracted),
+          as.character(acc$correct),
+          as.character(acc$edited),
+          as.character(acc$deleted),
+          as.character(acc$human_added),
+          sprintf("%.1f%%", acc$column_accuracy * 100),
+          as.character(acc$column_edits)
+        )
+      )
+
+      readr::write_csv(metrics_df, file)
+    },
+    contentType = "text/csv"
+  )
 
   # Session cleanup
   session$allowReconnect(TRUE)
