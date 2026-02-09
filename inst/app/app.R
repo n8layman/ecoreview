@@ -13,6 +13,45 @@ db_exists <- FALSE
 
 options(shiny.maxRequestSize = 50*1024^2)
 
+# Helper function to detect project root directory
+detect_project_root <- function() {
+  # Try to use here package if available (best option for finding project root)
+  if (requireNamespace("here", quietly = TRUE)) {
+    tryCatch({
+      return(here::here())
+    }, error = function(e) {
+      # If here() fails, continue to fallback methods
+    })
+  }
+
+  # Fallback: manual detection
+  current_dir <- getwd()
+
+  # Check if we're in an inst/app subdirectory of a package
+  if (grepl("/inst/app$", current_dir)) {
+    pkg_root <- dirname(dirname(current_dir))
+    if (dir.exists(file.path(pkg_root, ".git")) ||
+        length(list.files(pkg_root, pattern = "\\.Rproj$")) > 0) {
+      return(pkg_root)
+    }
+  }
+
+  # Look for project markers by walking up the directory tree
+  search_dir <- current_dir
+  for (i in 1:10) {
+    if (dir.exists(file.path(search_dir, ".git")) ||
+        length(list.files(search_dir, pattern = "\\.Rproj$")) > 0) {
+      return(search_dir)
+    }
+    parent_dir <- dirname(search_dir)
+    if (parent_dir == search_dir) break
+    search_dir <- parent_dir
+  }
+
+  # Final fallback to Documents folder
+  return(file.path(fs::path_home(), "Documents"))
+}
+
 # UI Definition
 ui <- shiny::fluidPage(
 
@@ -256,9 +295,9 @@ server <- function(input, output, session) {
     doc_metadata_original = NULL
   )
 
-  # Define volumes for shinyFiles (starts in R project, allows browsing elsewhere)
+  # Define volumes for shinyFiles (starts in project root, allows browsing elsewhere)
   volumes <- c(
-    "R Project" = getwd(),
+    "Project" = detect_project_root(),
     Home = fs::path_home(),
     Documents = file.path(fs::path_home(), "Documents"),
     Desktop = file.path(fs::path_home(), "Desktop"),
