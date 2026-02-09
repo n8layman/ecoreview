@@ -1213,26 +1213,57 @@ server <- function(input, output, session) {
 
       if (has_verified) {
         shiny::div(
+          # Record Detection Confusion Matrix
+          shiny::h4("Record Detection Performance"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            "Did the model find the records? (Regardless of field accuracy)"
+          ),
           shiny::fluidRow(
             shiny::column(6,
-              shiny::h4("Overall Metrics"),
-              shiny::tableOutput("accuracyMetricsTable")
+              plotly::plotlyOutput("confusionMatrixPlot", height = "300px")
             ),
             shiny::column(6,
-              shiny::h4("Summary"),
-              shiny::tableOutput("accuracySummaryTable")
+              shiny::tableOutput("detectionMetricsTable")
             )
           ),
           shiny::hr(),
+
+          # Field-Level Accuracy
+          shiny::h4("Field-Level Accuracy"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            "Of the fields extracted, how many were correct?"
+          ),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::tableOutput("fieldMetricsTable")
+            ),
+            shiny::column(6,
+              shiny::tableOutput("editSeverityTable")
+            )
+          ),
+          shiny::hr(),
+
+          # Column-Level Accuracy
           shiny::h4("Column-Level Accuracy"),
           shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
             shiny::tags$i(class = "fas fa-info-circle", style = "margin-right: 5px;"),
-            "Hover over the chart to reveal the toolbar. Click the camera icon to download as PNG."
+            "Which fields are hardest to extract? Hover to reveal toolbar, click camera icon to download."
           ),
           plotly::plotlyOutput("columnAccuracyPlot", height = "300px"),
           shiny::hr(),
-          shiny::h4("Edit Counts by Column"),
-          shiny::tableOutput("columnEditsTable")
+
+          # Summary Tables
+          shiny::h4("Detailed Breakdown"),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::h5("Summary Counts"),
+              shiny::tableOutput("accuracySummaryTable")
+            ),
+            shiny::column(6,
+              shiny::h5("Edit Counts by Column"),
+              shiny::tableOutput("columnEditsTable")
+            )
+          )
         )
       } else {
         shiny::div(style = "text-align: center; color: #6c757d; padding: 40px;",
@@ -1262,17 +1293,123 @@ server <- function(input, output, session) {
   })
   shiny::outputOptions(output, "hasVerifiedDocs", suspendWhenHidden = FALSE)
 
-  output$accuracyMetricsTable <- shiny::renderTable({
+  # Confusion Matrix Plot for Record Detection
+  output$confusionMatrixPlot <- plotly::renderPlotly({
+    acc <- accuracy_data()
+    shiny::req(acc$verified_documents > 0)
+
+    # Create a clear 3-category bar chart showing Found/Missed/Hallucinated
+    categories <- c("Found\n(Correct)", "Missed\n(False Neg)", "Hallucinated\n(False Pos)")
+    counts <- c(acc$records_found, acc$records_missed, acc$records_hallucinated)
+    colors <- c("#28a745", "#ffc107", "#dc3545")  # Green, Yellow, Red
+
+    total_true <- acc$records_found + acc$records_missed
+    total_predicted <- acc$records_found + acc$records_hallucinated
+
+    hover_text <- c(
+      paste0("Found: ", acc$records_found, "<br>",
+             sprintf("%.1f%% of model predictions", (acc$records_found / total_predicted) * 100), "<br>",
+             sprintf("%.1f%% of true records", (acc$records_found / total_true) * 100)),
+      paste0("Missed: ", acc$records_missed, "<br>",
+             sprintf("%.1f%% of true records", (acc$records_missed / total_true) * 100)),
+      paste0("Hallucinated: ", acc$records_hallucinated, "<br>",
+             sprintf("%.1f%% of model predictions", (acc$records_hallucinated / total_predicted) * 100))
+    )
+
+    plotly::plot_ly(
+      x = categories,
+      y = counts,
+      type = "bar",
+      marker = list(color = colors),
+      text = counts,
+      textposition = "outside",
+      hovertext = hover_text,
+      hoverinfo = "text",
+      showlegend = FALSE
+    ) %>%
+      plotly::layout(
+        title = list(text = "Record Detection Results", font = list(size = 14)),
+        xaxis = list(title = ""),
+        yaxis = list(title = "Record Count"),
+        margin = list(l = 50, r = 50, t = 50, b = 80)
+      )
+  })
+
+  # Detection Metrics Table
+  output$detectionMetricsTable <- shiny::renderTable({
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
     data.frame(
-      Metric = c("Precision", "Recall", "F1 Score"),
+      Metric = c(
+        "Detection Precision",
+        "Detection Recall",
+        "Perfect Record Rate",
+        "Records Found",
+        "Records Missed",
+        "Records Hallucinated"
+      ),
       Value = c(
-        sprintf("%.1f%%", acc$precision * 100),
-        sprintf("%.1f%%", acc$recall * 100),
-        sprintf("%.1f%%", acc$f1_score * 100)
-      )
+        sprintf("%.1f%%", acc$detection_precision * 100),
+        sprintf("%.1f%%", acc$detection_recall * 100),
+        sprintf("%.1f%%", acc$perfect_record_rate * 100),
+        as.character(acc$records_found),
+        as.character(acc$records_missed),
+        as.character(acc$records_hallucinated)
+      ),
+      stringsAsFactors = FALSE
+    )
+  }, striped = TRUE, hover = TRUE, width = "100%")
+
+  # Field-Level Metrics Table
+  output$fieldMetricsTable <- shiny::renderTable({
+    acc <- accuracy_data()
+    shiny::req(acc$verified_documents > 0)
+
+    data.frame(
+      Metric = c(
+        "Field Precision",
+        "Field Recall",
+        "Field F1 Score",
+        "Total Fields",
+        "Correct Fields",
+        "Records with Edits"
+      ),
+      Value = c(
+        sprintf("%.1f%%", acc$field_precision * 100),
+        sprintf("%.1f%%", acc$field_recall * 100),
+        sprintf("%.1f%%", acc$field_f1 * 100),
+        as.character(acc$total_fields),
+        as.character(acc$correct_fields),
+        as.character(acc$records_with_edits)
+      ),
+      stringsAsFactors = FALSE
+    )
+  }, striped = TRUE, hover = TRUE, width = "100%")
+
+  # Edit Severity Table
+  output$editSeverityTable <- shiny::renderTable({
+    acc <- accuracy_data()
+    shiny::req(acc$verified_documents > 0)
+
+    total_edits <- acc$major_edits + acc$minor_edits
+
+    data.frame(
+      Category = c(
+        "Major Edits",
+        "Minor Edits",
+        "Total Edits",
+        "Major Edit Rate",
+        "Avg Edits/Document"
+      ),
+      Value = c(
+        as.character(acc$major_edits),
+        as.character(acc$minor_edits),
+        as.character(total_edits),
+        sprintf("%.1f%%", acc$major_edit_rate * 100),
+        sprintf("%.1f", acc$avg_edits_per_document)
+      ),
+      stringsAsFactors = FALSE
     )
   }, striped = TRUE, hover = TRUE, width = "100%")
 
@@ -1281,11 +1418,25 @@ server <- function(input, output, session) {
     shiny::req(acc$verified_documents > 0)
 
     data.frame(
-      Category = c("Verified Documents", "Total Records", "Model Extracted",
-                   "Correct (unchanged)", "Edited", "Deleted (false positives)",
-                   "Human Added (missed)"),
-      Count = c(acc$verified_documents, acc$verified_records, acc$model_extracted,
-                acc$correct, acc$edited, acc$deleted, acc$human_added)
+      Category = c(
+        "Verified Documents",
+        "Total Records",
+        "Model Extracted",
+        "Records Found",
+        "Records Missed",
+        "Records Hallucinated",
+        "Records with Edits"
+      ),
+      Count = c(
+        acc$verified_documents,
+        acc$verified_records,
+        acc$model_extracted,
+        acc$records_found,
+        acc$records_missed,
+        acc$records_hallucinated,
+        acc$records_with_edits
+      ),
+      stringsAsFactors = FALSE
     )
   }, striped = TRUE, hover = TRUE, width = "100%")
 
@@ -1363,33 +1514,70 @@ server <- function(input, output, session) {
       # Combine all metrics into a single data frame
       metrics_df <- data.frame(
         Section = c(
-          "Overall Metrics", "Overall Metrics", "Overall Metrics",
+          # Record Detection Metrics
+          rep("Record Detection", 6),
+          # Field-Level Metrics
+          rep("Field-Level Accuracy", 6),
+          # Edit Severity
+          rep("Edit Severity", 5),
+          # Summary Counts
           rep("Summary", 7),
+          # Column Accuracy
           rep("Column Accuracy", length(acc$column_accuracy)),
+          # Column Edits
           rep("Column Edits", length(acc$column_edits))
         ),
         Metric = c(
-          "Precision", "Recall", "F1 Score",
+          # Record Detection
+          "Detection Precision", "Detection Recall", "Perfect Record Rate",
+          "Records Found", "Records Missed", "Records Hallucinated",
+          # Field-Level
+          "Field Precision", "Field Recall", "Field F1 Score",
+          "Total Fields", "Correct Fields", "Records with Edits",
+          # Edit Severity
+          "Major Edits", "Minor Edits", "Total Edits",
+          "Major Edit Rate", "Avg Edits per Document",
+          # Summary
           "Verified Documents", "Total Records", "Model Extracted",
-          "Correct (unchanged)", "Edited", "Deleted (false positives)",
-          "Human Added (missed)",
+          "Records Found", "Records Missed", "Records Hallucinated", "Records with Edits",
+          # Columns
           names(acc$column_accuracy),
           names(acc$column_edits)
         ),
         Value = c(
-          sprintf("%.1f%%", acc$precision * 100),
-          sprintf("%.1f%%", acc$recall * 100),
-          sprintf("%.1f%%", acc$f1_score * 100),
+          # Record Detection
+          sprintf("%.1f%%", acc$detection_precision * 100),
+          sprintf("%.1f%%", acc$detection_recall * 100),
+          sprintf("%.1f%%", acc$perfect_record_rate * 100),
+          as.character(acc$records_found),
+          as.character(acc$records_missed),
+          as.character(acc$records_hallucinated),
+          # Field-Level
+          sprintf("%.1f%%", acc$field_precision * 100),
+          sprintf("%.1f%%", acc$field_recall * 100),
+          sprintf("%.1f%%", acc$field_f1 * 100),
+          as.character(acc$total_fields),
+          as.character(acc$correct_fields),
+          as.character(acc$records_with_edits),
+          # Edit Severity
+          as.character(acc$major_edits),
+          as.character(acc$minor_edits),
+          as.character(acc$major_edits + acc$minor_edits),
+          sprintf("%.1f%%", acc$major_edit_rate * 100),
+          sprintf("%.1f", acc$avg_edits_per_document),
+          # Summary
           as.character(acc$verified_documents),
           as.character(acc$verified_records),
           as.character(acc$model_extracted),
-          as.character(acc$correct),
-          as.character(acc$edited),
-          as.character(acc$deleted),
-          as.character(acc$human_added),
+          as.character(acc$records_found),
+          as.character(acc$records_missed),
+          as.character(acc$records_hallucinated),
+          as.character(acc$records_with_edits),
+          # Columns
           sprintf("%.1f%%", acc$column_accuracy * 100),
           as.character(acc$column_edits)
-        )
+        ),
+        stringsAsFactors = FALSE
       )
 
       readr::write_csv(metrics_df, file)
