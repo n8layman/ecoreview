@@ -1238,12 +1238,7 @@ server <- function(input, output, session) {
               shiny::tableOutput("fieldMetricsTable")
             ),
             shiny::column(6,
-              shiny::tableOutput("editSeverityTable"),
-              shiny::p(style = "font-size: 0.85em; color: #6c757d; margin-top: 10px;",
-                shiny::tags$strong("Major edits:"), " Unique or required fields (e.g., species names, dates)",
-                shiny::tags$br(),
-                shiny::tags$strong("Minor edits:"), " Optional descriptive fields (e.g., page numbers)"
-              )
+              shiny::tableOutput("editSummaryTable")
             )
           ),
           shiny::hr(),
@@ -1392,27 +1387,23 @@ server <- function(input, output, session) {
     )
   }, striped = TRUE, hover = TRUE, width = "100%")
 
-  # Edit Severity Table
-  output$editSeverityTable <- shiny::renderTable({
+  # Edit Summary Table
+  output$editSummaryTable <- shiny::renderTable({
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
     total_edits <- acc$major_edits + acc$minor_edits
 
     data.frame(
-      Category = c(
-        "Major Edits",
-        "Minor Edits",
+      Metric = c(
         "Total Edits",
-        "Major Edit Rate",
-        "Avg Edits/Document"
+        "Avg Edits/Document",
+        "Records with Edits"
       ),
       Value = c(
-        as.character(acc$major_edits),
-        as.character(acc$minor_edits),
         as.character(total_edits),
-        sprintf("%.1f%%", acc$major_edit_rate * 100),
-        sprintf("%.1f", acc$avg_edits_per_document)
+        sprintf("%.1f", acc$avg_edits_per_document),
+        as.character(acc$records_with_edits)
       ),
       stringsAsFactors = FALSE
     )
@@ -1456,51 +1447,50 @@ server <- function(input, output, session) {
       stringsAsFactors = FALSE
     )
 
-    # Load schema to identify major vs minor fields
-    major_fields <- character(0)
-    tryCatch({
-      schema_path <- ecoextract:::load_config_file(NULL, "schema.json", "extdata", return_content = FALSE)
-      schema_json <- paste(readLines(schema_path, warn = FALSE), collapse = "\n")
-      schema_list <- jsonlite::fromJSON(schema_json, simplifyVector = FALSE)
-      record_schema <- schema_list$properties$records$items
-      unique_fields <- record_schema[["x-unique-fields"]]
-      required_fields <- record_schema[["required"]]
-      major_fields <- unique(c(unique_fields, required_fields))
-    }, error = function(e) {
-      # If schema can't be loaded, all fields treated as minor
-    })
-
-    # Classify fields and create labels
-    col_acc_df$is_major <- col_acc_df$Column %in% major_fields
-    col_acc_df$label <- ifelse(col_acc_df$is_major,
-                                paste0(col_acc_df$Column, " [MAJOR]"),
-                                col_acc_df$Column)
-    col_acc_df$color <- ifelse(col_acc_df$is_major, "#dc3545", "#6c757d")  # Red for major, gray for minor
-
     col_acc_df <- col_acc_df[order(col_acc_df$Accuracy), ]
-    col_acc_df$label <- factor(col_acc_df$label, levels = col_acc_df$label)
+    col_acc_df$Column <- factor(col_acc_df$Column, levels = col_acc_df$Column)
 
-    plotly::plot_ly(col_acc_df,
-            y = ~label,
-            x = ~Accuracy,
-            type = "bar",
-            orientation = "h",
-            marker = list(
-              color = ~color,
-              line = list(width = 1, color = "#ffffff")
-            ),
-            hovertemplate = paste0(
-              "%{y}<br>",
-              "Accuracy: %{x:.1f}%<br>",
-              "<extra></extra>"
-            ),
-            showlegend = FALSE) %>%
+    # Use log scale for viridis color, focusing on 50-100% range
+    # For values < 50%, use constant; for 50-100%, use log scale
+    col_acc_df$color_val <- ifelse(
+      col_acc_df$Accuracy < 50,
+      0,
+      log1p(col_acc_df$Accuracy - 50)
+    )
+
+    plotly::plot_ly(
+      col_acc_df,
+      y = ~Column,
+      x = ~Accuracy,
+      type = "bar",
+      orientation = "h",
+      marker = list(
+        color = ~color_val,
+        colorscale = "Viridis",
+        reversescale = TRUE,
+        showscale = FALSE,
+        line = list(width = 1, color = "#ffffff")
+      ),
+      text = ~Column,
+      textposition = "none",
+      hovertemplate = paste0(
+        "%{text}<br>",
+        "Accuracy: %{x:.1f}%<br>",
+        "<extra></extra>"
+      ),
+      showlegend = FALSE
+    ) %>%
       plotly::layout(
         xaxis = list(title = "Accuracy (%)", range = c(0, 100)),
         yaxis = list(title = ""),
         shapes = list(
-          list(type = "line", x0 = 90, x1 = 90, y0 = -0.5, y1 = nrow(col_acc_df) - 0.5,
-               line = list(color = "gray", dash = "dash"))
+          list(
+            type = "line",
+            x0 = 90, x1 = 90,
+            y0 = -0.5, y1 = nrow(col_acc_df) - 0.5,
+            line = list(color = "gray", width = 2),
+            layer = "above"
+          )
         ),
         annotations = list(
           list(x = 90, y = nrow(col_acc_df) - 0.5, text = "90%",
