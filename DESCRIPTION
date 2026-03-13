@@ -1,6 +1,6 @@
 Package: ecoreview
 Title: Interactive Review Interface for Ecological Data Extraction
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person("Nathan", "Layman", , "nathan.layman@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -12,7 +12,7 @@ Description: Provides an interactive Shiny interface for human validation of
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.3
 Imports:
     shiny,
     DT,
@@ -30,10 +30,13 @@ Imports:
     htmltools,
     magrittr,
     readr,
+    rlang,
     fs,
     here
 Suggests:
     ecoextract,
+    ellmer,
+    purrr,
     tokenizers,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
