@@ -55,7 +55,7 @@ collect_benchmark_results <- function(benchmark_dir) {
   cat(sprintf("Collecting results from %d trial databases\n", length(db_files)))
 
   all_records <- purrr::map_dfr(seq_along(db_files), function(i) {
-    ecoextract::export_db(db_conn = db_files[i]) |>
+    ecoextract::export_db(db_conn = db_files[i], simple = TRUE) |>
       dplyr::mutate(replicate = i)
   })
 
