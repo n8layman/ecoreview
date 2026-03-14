@@ -3,17 +3,18 @@
 # Functions for collecting, standardizing, and analyzing benchmark trial results.
 # These handle steps 2-3 of the benchmark pipeline (step 1 = extraction, in ecoextract).
 
-#' @importFrom rlang .data syms
+#' @importFrom rlang .data syms :=
 #' @importFrom utils head
 NULL
 
 #' Collect all benchmark trial results into a single CSV
 #'
-#' Reads all `benchmark_trial_*.db` files from a directory, exports records
-#' using [ecoextract::export_db()], adds a `replicate` column, and writes
-#' the combined results to `benchmark_records.csv`.
+#' Reads all trial `.db` files from a directory (matching `_trial_N.db`),
+#' exports records using [ecoextract::export_db()], adds a `replicate` column,
+#' and writes the combined results to `benchmark_records.csv`.
 #'
-#' @param benchmark_dir Directory containing `benchmark_trial_*.db` files
+#' @param benchmark_dir Directory containing trial `.db` files
+#'   (e.g. produced by `ecoextract::duplicate_for_trials()`)
 #' @return Tibble of all records across all replicates (invisibly)
 #' @export
 #'
@@ -34,21 +35,23 @@ collect_benchmark_results <- function(benchmark_dir) {
   benchmark_dir <- normalizePath(benchmark_dir, mustWork = TRUE)
 
   # Always start fresh - delete previous CSV and name mappings
-  for (f in c("benchmark_records.csv", "name_mappings_host.csv", "name_mappings_pathogen.csv")) {
-    fp <- file.path(benchmark_dir, f)
-    if (file.exists(fp)) {
-      cat(sprintf("Removing %s\n", f))
-      file.remove(fp)
-    }
+  stale_files <- list.files(
+    benchmark_dir,
+    pattern = "^(benchmark_records\\.csv|name_mappings_.*\\.csv)$",
+    full.names = TRUE
+  )
+  for (fp in stale_files) {
+    cat(sprintf("Removing %s\n", basename(fp)))
+    file.remove(fp)
   }
 
   db_files <- list.files(
     benchmark_dir,
-    pattern = "^benchmark_trial_.*\\.db$",
+    pattern = "_trial_\\d+\\.db$",
     full.names = TRUE
   ) |> sort()
 
-  stopifnot("No benchmark_trial_*.db files found" = length(db_files) > 0)
+  stopifnot("No trial .db files found (expected *_trial_N.db)" = length(db_files) > 0)
   cat(sprintf("Collecting results from %d trial databases\n", length(db_files)))
 
   all_records <- purrr::map_dfr(seq_along(db_files), function(i) {
@@ -67,88 +70,135 @@ collect_benchmark_results <- function(benchmark_dir) {
 
 #' Standardize names across benchmark replicates
 #'
-#' Reads `benchmark_records.csv`, pools all unique host/pathogen names, sends
-#' each to an LLM for standardization, and adds standardized columns to the CSV.
-#' Name mappings are cached to `name_mappings_host.csv` / `name_mappings_pathogen.csv`
-#' to avoid re-running the LLM on subsequent calls.
+#' Reads `benchmark_records.csv`, pools all unique names from specified
+#' columns, sends each to an LLM for standardization, and adds
+#' standardized columns to the CSV. Name mappings are cached to
+#' `name_mappings_{label}.csv` to avoid re-running the LLM on
+#' subsequent calls.
 #'
 #' @param benchmark_dir Directory containing `benchmark_records.csv`
-#' @param model LLM model to use for standardization (default: Claude via ellmer)
-#' @param name_type One of `"host"`, `"pathogen"`, or `"both"`
-#' @return The updated records tibble (also overwrites `benchmark_records.csv`)
+#' @param name_columns A list of lists, each with:
+#'   \describe{
+#'     \item{column}{Column name in the CSV to standardize}
+#'     \item{type}{Name type for the LLM prompt
+#'       (`"host"` or `"pathogen"`)}
+#'     \item{std_name}{Name for the new standardized column}
+#'   }
+#' @param model LLM model to use for standardization
+#'   (default: Claude via ellmer)
+#' @return The updated records tibble
+#'   (also overwrites `benchmark_records.csv`)
 #' @export
 #'
 #' @examples
 #' \dontrun{
+#' # Default host-pathogen schema
 #' records <- standardize_benchmark_names("data/test_variability")
+#'
+#' # Custom schema
+#' records <- standardize_benchmark_names(
+#'   "data/test_variability",
+#'   name_columns = list(
+#'     list(column = "bat_species", type = "host",
+#'          std_name = "bat_species_std"),
+#'     list(column = "organism", type = "pathogen",
+#'          std_name = "organism_std")
+#'   )
+#' )
 #' }
 standardize_benchmark_names <- function(
     benchmark_dir,
-    model = NULL,
-    name_type = "both"
+    name_columns = list(
+      list(column = "Host_Name",
+           type = "host",
+           std_name = "Host_Name_std"),
+      list(column = "Pathogen_Name",
+           type = "pathogen",
+           std_name = "Pathogen_Name_std")
+    ),
+    model = NULL
 ) {
   if (!requireNamespace("ellmer", quietly = TRUE)) {
-    stop("Package 'ellmer' is required for standardize_benchmark_names(). ",
-         "Install it with: install.packages('ellmer')")
+    stop(
+      "Package 'ellmer' is required. ",
+      "Install it with: install.packages('ellmer')"
+    )
   }
 
   benchmark_dir <- normalizePath(benchmark_dir, mustWork = TRUE)
 
   records_csv <- file.path(benchmark_dir, "benchmark_records.csv")
-  stopifnot("benchmark_records.csv not found - run collect_benchmark_results() first" =
-              file.exists(records_csv))
+  stopifnot(
+    "benchmark_records.csv not found" = file.exists(records_csv)
+  )
 
-  all_records <- readr::read_csv(records_csv, show_col_types = FALSE)
-  cat(sprintf("Loaded %s records from %s\n",
-              format(nrow(all_records), big.mark = ","), basename(records_csv)))
+  all_records <- readr::read_csv(
+    records_csv, show_col_types = FALSE
+  )
+  cat(sprintf(
+    "Loaded %s records from %s\n",
+    format(nrow(all_records), big.mark = ","),
+    basename(records_csv)
+  ))
 
-  # Drop any existing standardized columns to avoid duplicates on re-run
+  # Drop existing standardized columns to avoid duplicates on re-run
+  std_names <- vapply(
+    name_columns, function(x) x$std_name, character(1)
+  )
   all_records <- all_records |>
-    dplyr::select(-dplyr::any_of(c("Host_Name_std", "Pathogen_Name_std")))
+    dplyr::select(-dplyr::any_of(std_names))
 
-  # Standardize host names (or load from existing CSV cache)
-  host_csv <- file.path(benchmark_dir, "name_mappings_host.csv")
-  if (name_type %in% c("host", "both")) {
-    if (file.exists(host_csv)) {
-      cat(sprintf("Loading existing host mappings from %s\n", host_csv))
-      host_map <- readr::read_csv(host_csv, show_col_types = FALSE)
-    } else {
-      unique_hosts <- sort(unique(all_records$Host_Name))
-      cat(sprintf("Unique host names to standardize: %d\n", length(unique_hosts)))
-      host_map <- standardize_name_vector(unique_hosts, "host", model)
-      readr::write_csv(host_map, host_csv)
-      cat(sprintf("Saved host mappings to %s\n", host_csv))
+  for (nc in name_columns) {
+    col <- nc$column
+    type <- nc$type
+    std_name <- nc$std_name
+    label <- gsub("[^a-zA-Z0-9_]", "_", tolower(col))
+
+    if (!col %in% names(all_records)) {
+      warning(sprintf("Column '%s' not found, skipping", col))
+      next
     }
 
-    all_records <- all_records |>
-      dplyr::left_join(host_map |> dplyr::select("original", "canonical"),
-                       by = c("Host_Name" = "original")) |>
-      dplyr::rename(Host_Name_std = "canonical")
-  }
+    cache_csv <- file.path(
+      benchmark_dir,
+      paste0("name_mappings_", label, ".csv")
+    )
 
-  # Standardize pathogen names (or load from existing CSV cache)
-  pathogen_csv <- file.path(benchmark_dir, "name_mappings_pathogen.csv")
-  if (name_type %in% c("pathogen", "both")) {
-    if (file.exists(pathogen_csv)) {
-      cat(sprintf("Loading existing pathogen mappings from %s\n", pathogen_csv))
-      pathogen_map <- readr::read_csv(pathogen_csv, show_col_types = FALSE)
+    if (file.exists(cache_csv)) {
+      cat(sprintf(
+        "Loading existing %s mappings from %s\n",
+        col, basename(cache_csv)
+      ))
+      name_map <- readr::read_csv(
+        cache_csv, show_col_types = FALSE
+      )
     } else {
-      unique_pathogens <- sort(unique(all_records$Pathogen_Name))
-      cat(sprintf("Unique pathogen names to standardize: %d\n", length(unique_pathogens)))
-      pathogen_map <- standardize_name_vector(unique_pathogens, "pathogen", model)
-      readr::write_csv(pathogen_map, pathogen_csv)
-      cat(sprintf("Saved pathogen mappings to %s\n", pathogen_csv))
+      unique_names <- sort(unique(all_records[[col]]))
+      cat(sprintf(
+        "Unique %s names to standardize: %d\n",
+        col, length(unique_names)
+      ))
+      name_map <- standardize_name_vector(
+        unique_names, type, model
+      )
+      readr::write_csv(name_map, cache_csv)
+      cat(sprintf("Saved mappings to %s\n", cache_csv))
     }
 
+    join_by <- stats::setNames("original", col)
     all_records <- all_records |>
-      dplyr::left_join(pathogen_map |> dplyr::select("original", "canonical"),
-                       by = c("Pathogen_Name" = "original")) |>
-      dplyr::rename(Pathogen_Name_std = "canonical")
+      dplyr::left_join(
+        name_map |> dplyr::select("original", "canonical"),
+        by = join_by
+      ) |>
+      dplyr::rename(!!std_name := "canonical")
   }
 
-  # Overwrite CSV with standardized columns added
   readr::write_csv(all_records, records_csv)
-  cat(sprintf("Updated %s with standardized name columns\n", basename(records_csv)))
+  cat(sprintf(
+    "Updated %s with standardized name columns\n",
+    basename(records_csv)
+  ))
 
   invisible(all_records)
 }

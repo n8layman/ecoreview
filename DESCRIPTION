@@ -1,6 +1,6 @@
 Package: ecoreview
 Title: Interactive Review Interface for Ecological Data Extraction
-Version: 0.1.1
+Version: 0.1.2
 Authors@R:
     person("Nathan", "Layman", , "nathan.layman@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
