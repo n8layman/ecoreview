@@ -82,6 +82,38 @@ run_app(db_path = "ecoextract_records.db")
 
 See the [ecoextract documentation](https://github.com/n8layman/ecoextract) for complete workflow details, including API setup, custom schemas, and parallel processing.
 
+## Parallel / Team Review
+
+When a database is too large for one person to review, split it into equal-sized parts, distribute them to reviewers, then recombine once everyone is done.
+
+```r
+library(ecoreview)
+
+# Split into 4 parts (one per reviewer) — output written next to the source file
+parts <- split_db("ecoextract_records.db", n = 4)
+# → ecoextract_records_part_1.db ... ecoextract_records_part_4.db
+
+# Each reviewer launches the app pointed at their own part
+run_app(db_path = "ecoextract_records_part_2.db")
+
+# Once all reviewers are done, combine from the directory
+combine_db(
+  "path/to/parts/",            # scans for *_part_N.db files automatically
+  output_path = "ecoextract_records_reviewed.db"
+)
+
+# Or supply paths explicitly
+combine_db(
+  c("ecoextract_records_part_1.db",
+    "ecoextract_records_part_2.db",
+    "ecoextract_records_part_3.db",
+    "ecoextract_records_part_4.db"),
+  output_path = "ecoextract_records_reviewed.db"
+)
+```
+
+`combine_db()` validates that all parts share the same schema before merging and errors with a clear message if they differ, so accidental structural changes (e.g. a schema upgrade applied to only one part) are caught before any data is written to the output file.
+
 ## License
 
 GPL-3
