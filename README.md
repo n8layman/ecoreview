@@ -84,7 +84,7 @@ See the [ecoextract documentation](https://github.com/n8layman/ecoextract) for c
 
 ## Parallel / Team Review
 
-`ecoreview::split_db()` divides a database into `n` roughly-equal part files so multiple reviewers can each work through their own subset independently. `ecoreview::combine_db()` merges the finished parts back into a single database, accepting either a directory path (auto-discovers `*_part_N.db` files) or an explicit vector of paths. Before writing any data, `combine_db()` validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Documents and interactions are merged with their original IDs intact; `human_edits` entries receive new IDs automatically to avoid collisions between reviewers' audit trails.
+`ecoreview::split_db()` divides a database into `n` roughly-equal part files so multiple reviewers can each work through their own subset independently. `ecoreview::combine_db()` merges the finished parts back into a single database, accepting either a directory path (auto-discovers `*_part_N.db` files) or an explicit vector of paths. Before writing any data, `combine_db()` validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in `run_app()` gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.
 
 ```r
 # Split into 4 parts (one per reviewer) — written next to the source file
