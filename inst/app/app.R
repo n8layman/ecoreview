@@ -917,8 +917,6 @@ server <- function(input, output, session) {
           }
         }
 
-        DBI::dbExecute(conn, "UPDATE records SET publication_year = ? WHERE document_id = ?",
-                      params = list(new_year, doc_id_int))
       }
 
       doc_metadata <- list(
