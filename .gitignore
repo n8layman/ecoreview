@@ -9,7 +9,7 @@
 # Package build
 *.tar.gz
 *.Rcheck/
-man/*.Rd
+# man/*.Rd  # committed so remotes::install_github() uses pre-built NAMESPACE
 
 # IDE
 .idea/
