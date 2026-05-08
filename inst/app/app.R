@@ -694,6 +694,7 @@ server <- function(input, output, session) {
 
         tryCatch({
           records <- ecoextract::get_records(doc_id_int, db_conn = values$db_conn)
+          if ("deleted_by_user" %in% names(records)) records <- records[is.na(records$deleted_by_user), , drop = FALSE]
           values$extracted_df <- records
           values$original_df <- records
         }, error = function(e) NULL)
@@ -767,6 +768,7 @@ server <- function(input, output, session) {
     tryCatch({
       doc_id_int <- as.integer(doc_id)
       records <- ecoextract::get_records(doc_id_int, db_conn = values$db_conn)
+      if ("deleted_by_user" %in% names(records)) records <- records[is.na(records$deleted_by_user), , drop = FALSE]
       values$extracted_df <- records
       values$original_df <- records
     }, error = function(e) {
@@ -999,6 +1001,9 @@ server <- function(input, output, session) {
       shiny::req(values$db_conn)
 
       records <- ecoextract::get_records(db_conn = values$db_conn)
+      if ("deleted_by_user" %in% names(records)) {
+        records <- records[is.na(records$deleted_by_user), , drop = FALSE]
+      }
       documents <- ecoextract::get_documents(db_conn = values$db_conn)
 
       export_data <- records |>
