@@ -277,14 +277,25 @@ ui <- shiny::fluidPage(
 # Server Definition
 server <- function(input, output, session) {
 
-  # Post-process records after get_records: filter soft-deleted rows and
-  # ensure human_edited is TRUE for rows added by the user.
+  # Post-process records after get_records: ensure human_edited is TRUE for
+  # rows added by the user. Soft-deleted rows are NOT filtered here — the
+  # deleted_by_user flag is preserved and display/export filtering is done
+  # downstream.
   process_records <- function(records) {
-    if ("deleted_by_user" %in% names(records))
-      records <- records[is.na(records$deleted_by_user), , drop = FALSE]
     if ("added_by_user" %in% names(records) && "human_edited" %in% names(records))
       records$human_edited <- records$human_edited | (records$added_by_user == 1L)
     records
+  }
+
+  # Map a display row index (from DT) to the actual row index in extracted_df,
+  # accounting for hidden soft-deleted rows.
+  display_to_actual_row <- function(display_row) {
+    df <- values$extracted_df
+    if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(df)) {
+      which(is.na(df$deleted_by_user))[display_row]
+    } else {
+      display_row
+    }
   }
 
   # Initialize reactive values
@@ -1095,10 +1106,10 @@ server <- function(input, output, session) {
     shiny::req(values$extracted_df)
     edit_info <- input$interactiveTable_cell_edit
 
-    row_num <- edit_info$row
+    row_num <- display_to_actual_row(edit_info$row)
     col_num <- edit_info$col + 1
 
-    if (row_num > nrow(values$extracted_df) || col_num > ncol(values$extracted_df)) return()
+    if (is.na(row_num) || row_num > nrow(values$extracted_df) || col_num > ncol(values$extracted_df)) return()
 
     col_name <- names(values$extracted_df)[col_num]
     old_value <- values$extracted_df[[row_num, col_name]]
@@ -1132,8 +1143,8 @@ server <- function(input, output, session) {
   shiny::observe({
     if (!is.null(input$interactiveTable_rows_selected) && length(input$interactiveTable_rows_selected) > 0) {
       shiny::req(values$extracted_df)
-      selected_row <- input$interactiveTable_rows_selected[1]
-      if (selected_row <= nrow(values$extracted_df)) {
+      selected_row <- display_to_actual_row(input$interactiveTable_rows_selected[1])
+      if (!is.na(selected_row) && selected_row <= nrow(values$extracted_df)) {
         row_data <- values$extracted_df[selected_row, ]
         if ("all_supporting_source_sentences" %in% names(row_data) && !is.na(row_data$all_supporting_source_sentences)) {
           tryCatch({
@@ -1181,9 +1192,11 @@ server <- function(input, output, session) {
     shiny::req(values$extracted_df, input$interactiveTable_rows_selected)
     selected_row <- input$interactiveTable_rows_selected
     if (length(selected_row) > 0) {
-      row_to_delete <- selected_row[1]
-      if ("deleted_by_user" %in% names(values$extracted_df)) {
-        values$extracted_df[[row_to_delete, "deleted_by_user"]] <- as.character(Sys.time())
+      row_to_delete <- display_to_actual_row(selected_row[1])
+      if ("deleted_by_user" %in% names(values$extracted_df) && !is.na(row_to_delete)) {
+        df <- values$extracted_df
+        df[row_to_delete, "deleted_by_user"] <- as.character(Sys.time())
+        values$extracted_df <- df
       }
       values$edit_trigger <- values$edit_trigger + 1
       shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.", type = "message", duration = 3)

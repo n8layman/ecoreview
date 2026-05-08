@@ -96,6 +96,15 @@ find_best_match_in_html <- function(html_text, clean_evidence, threshold) {
     segment <- trimws(segment)
     clean_segment <- clean_sentence_for_comparison(segment)
 
+    # Substring containment: if the evidence is literally inside the segment
+    # this is a perfect match — no fuzzy scoring needed.
+    hit_pos <- regexpr(tolower(clean_evidence), tolower(clean_segment), fixed = TRUE)[[1]]
+    if (hit_pos > 0) {
+      best_match <- substr(segment, hit_pos, hit_pos + nchar(clean_evidence) - 1)
+      best_score <- 1.0
+      break
+    }
+
     # Check word overlap first for efficiency
     evidence_words <- unlist(strsplit(tolower(clean_evidence), "\\s+"))
     segment_words <- unlist(strsplit(tolower(clean_segment), "\\s+"))
@@ -113,13 +122,13 @@ find_best_match_in_html <- function(html_text, clean_evidence, threshold) {
 
     # Also check substrings if segment is longer than evidence
     if (nchar(clean_segment) > nchar(clean_evidence) * 1.2) {
-      # Sliding window approach
+      # Sliding window — use smaller step for better alignment
       window_size <- nchar(clean_evidence)
-      for (start in seq(1, nchar(clean_segment) - window_size + 1, by = 20)) {
+      step <- max(5, window_size %/% 10)
+      for (start in seq(1, nchar(clean_segment) - window_size + 1, by = step)) {
         substr_text <- substr(clean_segment, start, start + window_size - 1)
         sub_similarity <- stringdist::stringsim(clean_evidence, substr_text, method = "jw")
         if (sub_similarity > best_score) {
-          # Find corresponding position in original segment
           original_substr <- substr(segment, start, start + window_size - 1)
           best_score <- sub_similarity
           best_match <- original_substr
