@@ -277,6 +277,16 @@ ui <- shiny::fluidPage(
 # Server Definition
 server <- function(input, output, session) {
 
+  # Post-process records after get_records: filter soft-deleted rows and
+  # ensure human_edited is TRUE for rows added by the user.
+  process_records <- function(records) {
+    if ("deleted_by_user" %in% names(records))
+      records <- records[is.na(records$deleted_by_user), , drop = FALSE]
+    if ("added_by_user" %in% names(records) && "human_edited" %in% names(records))
+      records$human_edited <- records$human_edited | (records$added_by_user == 1L)
+    records
+  }
+
   # Initialize reactive values
   values <- shiny::reactiveValues(
     db_conn = if (db_exists) db_path else NULL,
@@ -693,8 +703,7 @@ server <- function(input, output, session) {
         }, error = function(e) NULL)
 
         tryCatch({
-          records <- ecoextract::get_records(doc_id_int, db_conn = values$db_conn)
-          if ("deleted_by_user" %in% names(records)) records <- records[is.na(records$deleted_by_user), , drop = FALSE]
+          records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
           values$extracted_df <- records
           values$original_df <- records
         }, error = function(e) NULL)
@@ -767,8 +776,7 @@ server <- function(input, output, session) {
 
     tryCatch({
       doc_id_int <- as.integer(doc_id)
-      records <- ecoextract::get_records(doc_id_int, db_conn = values$db_conn)
-      if ("deleted_by_user" %in% names(records)) records <- records[is.na(records$deleted_by_user), , drop = FALSE]
+      records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
       values$extracted_df <- records
       values$original_df <- records
     }, error = function(e) {
@@ -935,7 +943,10 @@ server <- function(input, output, session) {
       do.call(ecoextract::save_document, c(
         list(
           document_id = doc_id_int,
-          records_df = values$extracted_df %||% data.frame(),
+          records_df = {
+            df <- values$extracted_df %||% data.frame()
+            if ("deleted_by_user" %in% names(df)) df[is.na(df$deleted_by_user), , drop = FALSE] else df
+          },
           original_df = values$original_df,
           db_conn = conn
         ),
@@ -943,7 +954,16 @@ server <- function(input, output, session) {
       ))
 
       values$unsaved_changes <- list()
-      values$original_df <- values$extracted_df
+
+      # Reload from DB so added rows get real auto-increment ids
+      tryCatch({
+        refreshed <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
+        values$extracted_df <- refreshed
+        values$original_df <- refreshed
+      }, error = function(e) {
+        values$original_df <- values$extracted_df
+        shiny::showNotification(paste("Warning: could not reload records:", e$message), type = "warning", duration = 5)
+      })
 
       values$doc_metadata_original <- values$doc_metadata_original |>
         dplyr::mutate(
@@ -1038,7 +1058,11 @@ server <- function(input, output, session) {
     shiny::req(values$extracted_df)
     values$edit_trigger
 
-    display_data <- values$extracted_df
+    display_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
+      values$extracted_df[is.na(values$extracted_df$deleted_by_user), , drop = FALSE]
+    } else {
+      values$extracted_df
+    }
 
     if (is.null(display_data) || nrow(display_data) == 0) {
       return(DT::datatable(
@@ -1048,7 +1072,8 @@ server <- function(input, output, session) {
       ))
     }
 
-    dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15)
+    dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
+                                             disable_cols = c("id", "record_id"))
 
     if ("id" %in% names(display_data)) {
       tryCatch({
@@ -1073,7 +1098,7 @@ server <- function(input, output, session) {
     row_num <- edit_info$row
     col_num <- edit_info$col + 1
 
-    if (row_num >= nrow(values$extracted_df) || col_num >= ncol(values$extracted_df)) return()
+    if (row_num > nrow(values$extracted_df) || col_num > ncol(values$extracted_df)) return()
 
     col_name <- names(values$extracted_df)[col_num]
     old_value <- values$extracted_df[[row_num, col_name]]
@@ -1143,8 +1168,9 @@ server <- function(input, output, session) {
     new_row <- values$extracted_df[1, ]
     new_row[1, ] <- NA
     new_row$id <- NA_integer_
-    new_row$document_id <- values$document_id
-    new_row$record_id <- NA_character_
+    new_row$document_id <- as.integer(values$document_id)
+    new_row$record_id <- NA_character_  # assigned by ecoextract on Verify
+
     values$extracted_df <- rbind(values$extracted_df, new_row)
     values$edit_trigger <- values$edit_trigger + 1
     shiny::showNotification("New row added. Click 'Verify Records' to save changes.", type = "message", duration = 3)
@@ -1156,9 +1182,11 @@ server <- function(input, output, session) {
     selected_row <- input$interactiveTable_rows_selected
     if (length(selected_row) > 0) {
       row_to_delete <- selected_row[1]
-      values$extracted_df <- values$extracted_df[-row_to_delete, ]
+      if ("deleted_by_user" %in% names(values$extracted_df)) {
+        values$extracted_df[[row_to_delete, "deleted_by_user"]] <- as.character(Sys.time())
+      }
       values$edit_trigger <- values$edit_trigger + 1
-      shiny::showNotification("Row deleted. Click 'Verify Records' to save changes.", type = "message", duration = 3)
+      shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.", type = "message", duration = 3)
     } else {
       shiny::showNotification("Please select a row to delete.", type = "warning", duration = 3)
     }

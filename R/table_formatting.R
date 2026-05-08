@@ -5,9 +5,19 @@
 #' @param data Dataframe to display
 #' @param height Table height (default: "600px")
 #' @param page_length Number of rows per page (default: 15)
+#' @param disable_cols Character vector of column names to make non-editable
 #' @return Styled DT::datatable object
 #' @export
-create_styled_datatable <- function(data, height = "600px", page_length = 15) {
+create_styled_datatable <- function(data, height = "600px", page_length = 15,
+                                    disable_cols = character(0)) {
+  disabled_indices <- which(names(data) %in% disable_cols) - 1L  # 0-based
+
+  editable <- if (length(disabled_indices) > 0) {
+    list(target = "cell", disable = list(columns = disabled_indices))
+  } else {
+    list(target = "cell")
+  }
+
   DT::datatable(data,
     options = list(
       pageLength = page_length,
@@ -20,7 +30,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15) {
       fixedColumns = FALSE
     ),
     rownames = FALSE,
-    editable = list(target = 'cell'),
+    editable = editable,
     selection = 'single',
     class = 'cell-border stripe compact'
   )
