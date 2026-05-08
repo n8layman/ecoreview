@@ -1137,12 +1137,12 @@ server <- function(input, output, session) {
     shiny::req(values$extracted_df)
     new_row <- values$extracted_df[1, ]
     new_row[1, ] <- NA
-    new_row$id <- max(values$extracted_df$id, na.rm = TRUE) + 1
+    new_row$id <- NA_integer_
     new_row$document_id <- values$document_id
-    new_row$record_id <- paste0("NewRow-", new_row$id)
+    new_row$record_id <- NA_character_
     values$extracted_df <- rbind(values$extracted_df, new_row)
     values$edit_trigger <- values$edit_trigger + 1
-    shiny::showNotification("New row added. Click Accept to save changes.", type = "message", duration = 3)
+    shiny::showNotification("New row added. Click 'Verify Records' to save changes.", type = "message", duration = 3)
   })
 
   # Delete row functionality
@@ -1151,25 +1151,9 @@ server <- function(input, output, session) {
     selected_row <- input$interactiveTable_rows_selected
     if (length(selected_row) > 0) {
       row_to_delete <- selected_row[1]
-      interaction_id <- if ("id" %in% names(values$extracted_df)) values$extracted_df[[row_to_delete, "id"]] else NA
-
-      if ("deleted_by_human" %in% names(values$extracted_df)) {
-        values$extracted_df[[row_to_delete, "deleted_by_human"]] <- TRUE
-      }
-
-      if (!is.na(interaction_id)) {
-        delete_key <- paste("DELETE", interaction_id, sep = "_")
-        values$unsaved_changes[[delete_key]] <- tibble::tibble(
-          interaction_id = interaction_id,
-          column_name = "deleted_by_human",
-          old_value = "FALSE",
-          new_value = "TRUE",
-          timestamp = Sys.time()
-        )
-      }
-
+      values$extracted_df <- values$extracted_df[-row_to_delete, ]
       values$edit_trigger <- values$edit_trigger + 1
-      shiny::showNotification("Row marked for deletion. Click Accept to save changes.", type = "message", duration = 3)
+      shiny::showNotification("Row deleted. Click 'Verify Records' to save changes.", type = "message", duration = 3)
     } else {
       shiny::showNotification("Please select a row to delete.", type = "warning", duration = 3)
     }

@@ -91,7 +91,7 @@ get_all_edited_cells <- function(document_id, pending_edits) {
   # Add pending edits (filter out system operations)
   if (length(pending_edits) > 0) {
     human_edits <- pending_edits[sapply(pending_edits, function(x) {
-      edit_type <- x$edit_type
+      edit_type <- if ("edit_type" %in% names(x)) x$edit_type else NULL
       is.null(edit_type) || is.na(edit_type) || edit_type == "edit"
     })]
 
