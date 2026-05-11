@@ -1356,7 +1356,7 @@ server <- function(input, output, session) {
       hovertext = hover_text,
       hoverinfo = "text",
       showlegend = FALSE
-    ) %>%
+    ) |>
       plotly::layout(
         title = list(text = "Record Detection Results", font = list(size = 14)),
         xaxis = list(title = ""),
@@ -1509,7 +1509,7 @@ server <- function(input, output, session) {
         "<extra></extra>"
       ),
       showlegend = FALSE
-    ) %>%
+    ) |>
       plotly::layout(
         xaxis = list(title = "Accuracy (%)", range = c(0, 100)),
         yaxis = list(title = ""),

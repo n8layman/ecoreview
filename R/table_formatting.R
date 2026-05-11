@@ -47,7 +47,7 @@ apply_deleted_row_styling <- function(dt, data) {
 
   deleted_rows <- which(data$deleted_by_human == TRUE)
   if (length(deleted_rows) > 0) {
-    dt <- dt %>% DT::formatStyle(
+    dt <- dt |> DT::formatStyle(
       columns = 1:ncol(data),
       target = "row",
       backgroundColor = DT::styleEqual(TRUE, "#f8d7da", default = ""),
@@ -69,7 +69,7 @@ apply_deleted_row_styling <- function(dt, data) {
 apply_restored_row_styling <- function(dt, data, restored_ids) {
   if (length(restored_ids) == 0) return(dt)
 
-  dt %>% DT::formatStyle(
+  dt |> DT::formatStyle(
     columns = "id",
     backgroundColor = DT::styleEqual(restored_ids, rep("#d1ecf1", length(restored_ids))),
     borderLeft = DT::styleEqual(restored_ids, rep("4px solid #17a2b8", length(restored_ids)))
