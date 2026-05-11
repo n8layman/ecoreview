@@ -19,6 +19,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
   }
 
   DT::datatable(data,
+    extensions = "ColReorder",
     options = list(
       pageLength = page_length,
       scrollX = TRUE,
@@ -27,7 +28,8 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
       autoWidth = FALSE,
       columnDefs = list(list(className = 'dt-nowrap', targets = "_all")),
       dom = 'frtip',
-      fixedColumns = FALSE
+      fixedColumns = FALSE,
+      colReorder = TRUE
     ),
     rownames = FALSE,
     editable = editable,
