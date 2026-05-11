@@ -35,7 +35,20 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
       scrollY = height,
       scrollCollapse = TRUE,
       autoWidth = FALSE,
-      columnDefs = list(list(className = 'dt-nowrap', targets = "_all")),
+      columnDefs = list(list(
+        targets = "_all",
+        className = "dt-nowrap",
+        createdCell = DT::JS(
+          "function(td, cellData) {",
+          "  $(td).css({'max-width': '200px', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});",
+          "  var text = (cellData !== null && cellData !== undefined) ? String(cellData) : '';",
+          "  if (text.length > 0) {",
+          "    try { var p = JSON.parse(text); if (Array.isArray(p)) text = p.join('\\n'); } catch(e) {}",
+          "    $(td).attr('title', text);",
+          "  }",
+          "}"
+        )
+      )),
       dom = 'frtip',
       fixedColumns = FALSE,
       colReorder = col_reorder_opt
