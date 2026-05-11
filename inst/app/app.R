@@ -1181,6 +1181,8 @@ server <- function(input, output, session) {
     new_row$id <- NA_integer_
     new_row$document_id <- as.integer(values$document_id)
     new_row$record_id <- NA_character_  # assigned by ecoextract on Verify
+    if ("prompt_hash" %in% names(new_row)) new_row$prompt_hash <- "manually_added"
+    if ("llm_model_version" %in% names(new_row)) new_row$llm_model_version <- "manually_added"
 
     values$extracted_df <- rbind(values$extracted_df, new_row)
     values$edit_trigger <- values$edit_trigger + 1
