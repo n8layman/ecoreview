@@ -6,16 +6,25 @@
 #' @param height Table height (default: "600px")
 #' @param page_length Number of rows per page (default: 15)
 #' @param disable_cols Character vector of column names to make non-editable
+#' @param col_order Integer vector of 0-based column indices giving the display
+#'   order (from a previous ColReorder interaction). NULL means default order.
 #' @return Styled DT::datatable object
 #' @export
 create_styled_datatable <- function(data, height = "600px", page_length = 15,
-                                    disable_cols = character(0)) {
+                                    disable_cols = character(0),
+                                    col_order = NULL) {
   disabled_indices <- which(names(data) %in% disable_cols) - 1L  # 0-based
 
   editable <- if (length(disabled_indices) > 0) {
     list(target = "cell", disable = list(columns = disabled_indices))
   } else {
     list(target = "cell")
+  }
+
+  col_reorder_opt <- if (!is.null(col_order) && length(col_order) == ncol(data)) {
+    list(order = as.list(col_order))
+  } else {
+    TRUE
   }
 
   DT::datatable(data,
@@ -29,12 +38,18 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
       columnDefs = list(list(className = 'dt-nowrap', targets = "_all")),
       dom = 'frtip',
       fixedColumns = FALSE,
-      colReorder = TRUE
+      colReorder = col_reorder_opt
     ),
     rownames = FALSE,
     editable = editable,
     selection = 'single',
-    class = 'cell-border stripe compact'
+    class = 'cell-border stripe compact',
+    callback = DT::JS(
+      "table.on('column-reorder.dt', function() {",
+      "  Shiny.setInputValue('interactiveTable_col_order',",
+      "    table.colReorder.order().toArray(), {priority: 'event'});",
+      "});"
+    )
   )
 }
 

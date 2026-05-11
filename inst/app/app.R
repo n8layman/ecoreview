@@ -312,6 +312,7 @@ server <- function(input, output, session) {
     edit_trigger = 0,
     unsaved_changes = list(),
     show_deleted = FALSE,
+    col_order = NULL,
     doc_metadata = NULL,
     doc_metadata_original = NULL
   )
@@ -1084,7 +1085,8 @@ server <- function(input, output, session) {
     }
 
     dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
-                                             disable_cols = c("id", "record_id"))
+                                             disable_cols = c("id", "record_id"),
+                                             col_order = values$col_order)
 
     if ("id" %in% names(display_data)) {
       tryCatch({
@@ -1218,6 +1220,11 @@ server <- function(input, output, session) {
       shiny::showNotification("Hiding deleted interactions", type = "message", duration = 2)
     }
     values$edit_trigger <- values$edit_trigger + 1
+  })
+
+  # Persist column reorder across documents within the session
+  shiny::observeEvent(input$interactiveTable_col_order, {
+    values$col_order <- input$interactiveTable_col_order
   })
 
   # Flagged count (placeholder)

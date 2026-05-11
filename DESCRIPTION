@@ -1,9 +1,10 @@
 Package: ecoreview
 Title: Interactive Review Interface for Ecological Data Extraction
 Version: 0.1.2
-Authors@R:
+Authors@R: c(
     person("Nathan", "Layman", , "nathan.layman@gmail.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+           comment = c(ORCID = "YOUR-ORCID-ID")),
+    person("Valentine", "Herrmann", role = "ctb"))
 Description: Provides an interactive Shiny interface for human validation of
     ecological interaction data extracted from scientific literature. Works with
     databases created by the ecoextract package, allowing researchers to review
@@ -28,7 +29,6 @@ Imports:
     stringr,
     stringdist,
     htmltools,
-    magrittr,
     readr,
     rlang,
     fs,
