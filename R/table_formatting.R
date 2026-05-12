@@ -72,7 +72,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
       "}",
       "table.on('column-reorder.dt', function() {",
       "  Shiny.setInputValue('interactiveTable_col_order',",
-      "    table.colReorder.order(), {priority: 'event'});",
+      "    table.colReorder.order());",
       "});"
     )
   )

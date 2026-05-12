@@ -353,6 +353,7 @@ server <- function(input, output, session) {
         values$extracted_df <- NULL
         values$original_df <- NULL
         values$unsaved_changes <- list()
+        values$col_order <- NULL
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
       }
@@ -393,6 +394,7 @@ server <- function(input, output, session) {
         values$extracted_df <- NULL
         values$original_df <- NULL
         values$unsaved_changes <- list()
+        values$col_order <- NULL
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
       }
@@ -476,6 +478,7 @@ server <- function(input, output, session) {
     shiny::req(input$dbFileModal)
     values$db_conn <- input$dbFileModal$datapath
     values$db_name <- input$dbFileModal$name
+    values$col_order <- NULL
     shiny::removeModal()
     shiny::showNotification(paste("Connected to database:", input$dbFileModal$name), type = "message")
   })
@@ -491,6 +494,7 @@ server <- function(input, output, session) {
         utils::download.file(db_path_input, temp_db, mode = "wb", quiet = TRUE)
         values$db_conn <- temp_db
         values$db_name <- basename(db_path_input)
+        values$col_order <- NULL
         shiny::removeModal()
         shiny::showNotification(paste("Connected to remote database:", basename(db_path_input)), type = "message")
       }, error = function(e) {
@@ -500,6 +504,7 @@ server <- function(input, output, session) {
       if (file.exists(db_path_input)) {
         values$db_conn <- db_path_input
         values$db_name <- basename(db_path_input)
+        values$col_order <- NULL
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path_input)), type = "message")
       } else {
@@ -1086,7 +1091,7 @@ server <- function(input, output, session) {
 
     dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
                                              disable_cols = c("id", "record_id"),
-                                             col_order = shiny::isolate(values$col_order))
+                                             col_order = values$col_order)
 
     if ("id" %in% names(display_data)) {
       tryCatch({
@@ -1222,9 +1227,22 @@ server <- function(input, output, session) {
     values$edit_trigger <- values$edit_trigger + 1
   })
 
-  # Persist column reorder across documents within the session
+  # Initialise col_order to 0-based default when the first document loads
+  # (or after a new DB is connected and col_order has been reset to NULL)
+  shiny::observeEvent(values$extracted_df, {
+    if (!is.null(values$extracted_df) && is.null(values$col_order)) {
+      values$col_order <- seq_len(ncol(values$extracted_df)) - 1L
+    }
+  }, ignoreNULL = FALSE)
+
+  # Update col_order when user drags columns; guard with identical() so
+  # re-assigning the same order after a table re-render does not cause
+  # another invalidation cycle.
   shiny::observeEvent(input$interactiveTable_col_order, {
-    values$col_order <- input$interactiveTable_col_order
+    new_order <- as.integer(input$interactiveTable_col_order)
+    if (!identical(values$col_order, new_order)) {
+      values$col_order <- new_order
+    }
   })
 
   # Flagged count (placeholder)
