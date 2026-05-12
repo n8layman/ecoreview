@@ -1086,7 +1086,7 @@ server <- function(input, output, session) {
 
     dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
                                              disable_cols = c("id", "record_id"),
-                                             col_order = values$col_order)
+                                             col_order = shiny::isolate(values$col_order))
 
     if ("id" %in% names(display_data)) {
       tryCatch({
