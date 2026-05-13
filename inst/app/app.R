@@ -1114,7 +1114,7 @@ server <- function(input, output, session) {
     edit_info <- input$interactiveTable_cell_edit
 
     row_num <- display_to_actual_row(edit_info$row)
-    col_num <- edit_info$col + 1
+    col_num <- which(values$col_order == edit_info$col)
 
     if (is.na(row_num) || row_num > nrow(values$extracted_df) || col_num > ncol(values$extracted_df)) return()
 

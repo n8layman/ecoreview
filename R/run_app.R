@@ -54,7 +54,7 @@ run_app <- function(
     stop("Could not find app directory. Make sure ecoreview is installed correctly.")
   }
 
-  shiny::runApp(app_dir, ...)
+  shiny::runApp(app_dir, launch.browser = TRUE, ...)
 }
 
 #' Get ecoreview configuration option
