@@ -19,3 +19,6 @@
 
 # Temp files
 www/temp_*.pdf
+
+# Databases
+*.db

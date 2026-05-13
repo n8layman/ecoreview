@@ -9,6 +9,12 @@
 #' @param app_name Short name for the application (used in export filenames)
 #' @param github_url Optional GitHub repository URL for source link. Set to NULL to hide.
 #' @param export_prefix Prefix for exported CSV filenames (default: "ecoextract")
+#' @param priority_cols Character vector of column names to display first (left-most).
+#'   Columns not present in the data are silently ignored. All other columns follow
+#'   in their original order. NULL (default) uses the data frame column order.
+#' @param visible_cols Character vector of column names to show. All other columns
+#'   are hidden from the table display (the underlying data is unchanged). NULL
+#'   (default) shows all columns.
 #' @param ... Additional arguments passed to shiny::runApp()
 #'
 #' @return Launches the Shiny application (does not return)
@@ -18,12 +24,17 @@
 #' # Run with defaults
 #' run_app()
 #'
-#' # Customize for a specific project
+#' # Customize for a specific project with priority and visible columns
 #' run_app(
 #'   title = "ChiroScan: Bat Interaction Review",
 #'   app_name = "ChiroScan",
 #'   github_url = "https://github.com/n8layman/bat-interactions",
-#'   export_prefix = "bat_interactions"
+#'   export_prefix = "bat_interactions",
+#'   priority_cols = c("Pathogen_Name", "Host_Name",
+#'                     "Detection_Result_Direction", "Observation_Type"),
+#'   visible_cols  = c("Pathogen_Name", "Host_Name",
+#'                     "Detection_Result_Direction", "Observation_Type",
+#'                     "Host_Species", "Pathogen_Species")
 #' )
 #' }
 #'
@@ -33,6 +44,8 @@ run_app <- function(
   app_name = "EcoReview",
   github_url = "https://github.com/n8layman/ecoreview",
   export_prefix = "ecoextract",
+  priority_cols = NULL,
+  visible_cols = NULL,
   ...
 ) {
   # Store configuration in options for the app to access
@@ -44,7 +57,9 @@ run_app <- function(
     ecoreview.app_name = app_name,
     ecoreview.github_url = github_url,
     ecoreview.export_prefix = export_prefix,
-    ecoreview.user_working_dir = user_wd
+    ecoreview.user_working_dir = user_wd,
+    ecoreview.priority_cols = priority_cols,
+    ecoreview.visible_cols = visible_cols
   )
 
  # Find the app directory

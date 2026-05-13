@@ -9,6 +9,8 @@ run_app(
   app_name = "EcoReview",
   github_url = "https://github.com/n8layman/ecoreview",
   export_prefix = "ecoextract",
+  priority_cols = NULL,
+  visible_cols = NULL,
   ...
 )
 }
@@ -20,6 +22,14 @@ run_app(
 \item{github_url}{Optional GitHub repository URL for source link. Set to NULL to hide.}
 
 \item{export_prefix}{Prefix for exported CSV filenames (default: "ecoextract")}
+
+\item{priority_cols}{Character vector of column names to display first (left-most).
+Columns not present in the data are silently ignored. All other columns follow
+in their original order. NULL (default) uses the data frame column order.}
+
+\item{visible_cols}{Character vector of column names to show. All other columns
+are hidden from the table display (the underlying data is unchanged). NULL
+(default) shows all columns.}
 
 \item{...}{Additional arguments passed to shiny::runApp()}
 }
@@ -35,12 +45,17 @@ ecological data extracted with ecoextract.
 # Run with defaults
 run_app()
 
-# Customize for a specific project
+# Customize for a specific project with priority and visible columns
 run_app(
   title = "ChiroScan: Bat Interaction Review",
   app_name = "ChiroScan",
   github_url = "https://github.com/n8layman/bat-interactions",
-  export_prefix = "bat_interactions"
+  export_prefix = "bat_interactions",
+  priority_cols = c("Pathogen_Name", "Host_Name",
+                    "Detection_Result_Direction", "Observation_Type"),
+  visible_cols  = c("Pathogen_Name", "Host_Name",
+                    "Detection_Result_Direction", "Observation_Type",
+                    "Host_Species", "Pathogen_Species")
 )
 }
 

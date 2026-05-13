@@ -6,13 +6,10 @@
 #' @param height Table height (default: "600px")
 #' @param page_length Number of rows per page (default: 15)
 #' @param disable_cols Character vector of column names to make non-editable
-#' @param col_order Integer vector of 0-based column indices giving the display
-#'   order (from a previous ColReorder interaction). NULL means default order.
 #' @return Styled DT::datatable object
 #' @export
 create_styled_datatable <- function(data, height = "600px", page_length = 15,
-                                    disable_cols = character(0),
-                                    col_order = NULL) {
+                                    disable_cols = character(0)) {
   disabled_indices <- which(names(data) %in% disable_cols) - 1L  # 0-based
 
   editable <- if (length(disabled_indices) > 0) {
@@ -21,14 +18,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
     list(target = "cell")
   }
 
-  col_reorder_opt <- if (!is.null(col_order) && length(col_order) == ncol(data)) {
-    list(order = as.list(col_order))
-  } else {
-    TRUE
-  }
-
   DT::datatable(data,
-    extensions = "ColReorder",
     options = list(
       pageLength = page_length,
       scrollX = TRUE,
@@ -59,8 +49,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
         )
       )),
       dom = 'frtip',
-      fixedColumns = FALSE,
-      colReorder = col_reorder_opt
+      fixedColumns = FALSE
     ),
     rownames = FALSE,
     editable = editable,
@@ -69,11 +58,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
     callback = DT::JS(
       "if ($('#dt-tooltip').length === 0) {",
       "  $('body').append('<div id=\"dt-tooltip\" style=\"position:fixed;background:#333;color:#fff;padding:6px 10px;border-radius:4px;font-size:12px;max-width:350px;white-space:pre-wrap;word-wrap:break-word;z-index:9999;pointer-events:none;display:none;\"></div>');",
-      "}",
-      "table.on('column-reorder.dt', function() {",
-      "  Shiny.setInputValue('interactiveTable_col_order',",
-      "    table.colReorder.order());",
-      "});"
+      "}"
     )
   )
 }

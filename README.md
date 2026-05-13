@@ -44,10 +44,33 @@ run_app(
 )
 ```
 
+### Column Display Configuration
+
+Use `priority_cols` to pin the most important columns to the left, and `visible_cols` to
+show only the columns reviewers need. Neither parameter affects the underlying database —
+they are display-only settings.
+
+```r
+run_app(
+  title = "ChiroScan: Bat Interaction Review",
+  # Show these columns first (left-most), in this order
+  priority_cols = c("Pathogen_Name", "Host_Name",
+                    "Detection_Result_Direction", "Observation_Type"),
+  # Show only these columns on load (others hidden but still editable via Columns button)
+  visible_cols  = c("Pathogen_Name", "Host_Name",
+                    "Detection_Result_Direction", "Observation_Type",
+                    "Host_Species", "Pathogen_Species")
+)
+```
+
+Reviewers can further adjust column order and visibility at any time using the **Columns**
+button above the table, which opens a drag-and-drop panel with Visible and Hidden zones.
+
 ## Features
 
 - **Side-by-side document review**: View OCR text or original PDF alongside extracted records
 - **Inline cell editing**: Edit extracted data directly in the table with change tracking
+- **Column management**: Reorder and show/hide columns via a drag-and-drop panel — database is never modified
 - **Evidence highlighting**: Click a record to highlight supporting text in the document
 - **Audit trail**: Full history of all edits made during review
 - **Accuracy metrics**: Precision, recall, and F1 scores calculated from verified documents

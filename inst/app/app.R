@@ -251,7 +251,10 @@ ui <- shiny::fluidPage(
                        class = "btn-outline-danger btn-sm"),
           shiny::actionButton("showDeletedBtn",
                        label = "Show Deleted",
-                       class = "btn-outline-info btn-sm")
+                       class = "btn-outline-info btn-sm"),
+          shiny::actionButton("colMgmtBtn",
+                       label = shiny::HTML('<i class="fa fa-columns"></i> Columns'),
+                       class = "btn-outline-secondary btn-sm")
         ),
         shiny::conditionalPanel("output.flaggedCount > 0",
           shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; padding: 8px; margin-bottom: 10px; border-radius: 4px;",
@@ -313,6 +316,7 @@ server <- function(input, output, session) {
     unsaved_changes = list(),
     show_deleted = FALSE,
     col_order = NULL,
+    hidden_cols = character(0),
     doc_metadata = NULL,
     doc_metadata_original = NULL
   )
@@ -354,6 +358,7 @@ server <- function(input, output, session) {
         values$original_df <- NULL
         values$unsaved_changes <- list()
         values$col_order <- NULL
+        values$hidden_cols <- character(0)
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
       }
@@ -395,6 +400,7 @@ server <- function(input, output, session) {
         values$original_df <- NULL
         values$unsaved_changes <- list()
         values$col_order <- NULL
+        values$hidden_cols <- character(0)
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
       }
@@ -495,6 +501,7 @@ server <- function(input, output, session) {
         values$db_conn <- temp_db
         values$db_name <- basename(db_path_input)
         values$col_order <- NULL
+        values$hidden_cols <- character(0)
         shiny::removeModal()
         shiny::showNotification(paste("Connected to remote database:", basename(db_path_input)), type = "message")
       }, error = function(e) {
@@ -505,6 +512,7 @@ server <- function(input, output, session) {
         values$db_conn <- db_path_input
         values$db_name <- basename(db_path_input)
         values$col_order <- NULL
+        values$hidden_cols <- character(0)
         shiny::removeModal()
         shiny::showNotification(paste("Connected to database:", basename(db_path_input)), type = "message")
       } else {
@@ -1089,9 +1097,16 @@ server <- function(input, output, session) {
       ))
     }
 
+    # Reorder columns per col_order, then drop hidden ones
+    if (!is.null(values$col_order)) {
+      ordered_names <- names(values$extracted_df)[values$col_order + 1]
+      visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
+      visible_names <- visible_names[visible_names %in% names(display_data)]
+      display_data <- display_data[, visible_names, drop = FALSE]
+    }
+
     dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
-                                             disable_cols = c("id", "record_id"),
-                                             col_order = values$col_order)
+                                             disable_cols = c("id", "record_id"))
 
     if ("id" %in% names(display_data)) {
       tryCatch({
@@ -1114,11 +1129,15 @@ server <- function(input, output, session) {
     edit_info <- input$interactiveTable_cell_edit
 
     row_num <- display_to_actual_row(edit_info$row)
-    col_num <- which(values$col_order == edit_info$col)
 
-    if (is.na(row_num) || row_num > nrow(values$extracted_df) || col_num > ncol(values$extracted_df)) return()
+    # Map edit_info$col (0-based position in reordered+filtered display) → column name
+    ordered_names <- names(values$extracted_df)[values$col_order + 1]
+    visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
+    col_name <- visible_names[edit_info$col + 1]
 
-    col_name <- names(values$extracted_df)[col_num]
+    if (is.null(col_name) || is.na(col_name) || !col_name %in% names(values$extracted_df)) return()
+    if (is.na(row_num) || row_num > nrow(values$extracted_df)) return()
+
     old_value <- values$extracted_df[[row_num, col_name]]
 
     current_type <- class(values$extracted_df[[col_name]])
@@ -1231,18 +1250,89 @@ server <- function(input, output, session) {
   # (or after a new DB is connected and col_order has been reset to NULL)
   shiny::observeEvent(values$extracted_df, {
     if (!is.null(values$extracted_df) && is.null(values$col_order)) {
-      values$col_order <- seq_len(ncol(values$extracted_df)) - 1L
+      priority_cols <- get_ecoreview_option("priority_cols")
+      df_cols <- names(values$extracted_df)
+      if (!is.null(priority_cols)) {
+        priority_idx <- match(priority_cols, df_cols)
+        priority_idx <- priority_idx[!is.na(priority_idx)] - 1L
+        remaining_idx <- setdiff(seq_len(ncol(values$extracted_df)) - 1L, priority_idx)
+        values$col_order <- c(priority_idx, remaining_idx)
+      } else {
+        values$col_order <- seq_len(ncol(values$extracted_df)) - 1L
+      }
+      visible_cols <- get_ecoreview_option("visible_cols")
+      if (!is.null(visible_cols)) {
+        values$hidden_cols <- setdiff(df_cols, visible_cols)
+      }
     }
   }, ignoreNULL = FALSE)
 
-  # Update col_order when user drags columns; guard with identical() so
-  # re-assigning the same order after a table re-render does not cause
-  # another invalidation cycle.
-  shiny::observeEvent(input$interactiveTable_col_order, {
-    new_order <- as.integer(input$interactiveTable_col_order)
-    if (!identical(values$col_order, new_order)) {
-      values$col_order <- new_order
-    }
+
+  # Column management modal state (drives the bucket list UI)
+  col_mgmt_state <- shiny::reactiveVal(NULL)
+
+  shiny::observeEvent(input$colMgmtBtn, {
+    shiny::req(values$extracted_df, values$col_order)
+    all_col_names <- names(values$extracted_df)[values$col_order + 1]
+    col_mgmt_state(list(
+      visible = all_col_names[!all_col_names %in% values$hidden_cols],
+      hidden  = all_col_names[all_col_names %in% values$hidden_cols]
+    ))
+    shiny::showModal(shiny::modalDialog(
+      title = "Manage Columns",
+      size = "l",
+      easyClose = TRUE,
+      shiny::tags$p(
+        shiny::tags$em("Drag columns between zones. Order in Visible = left-to-right in table.")
+      ),
+      shiny::uiOutput("colMgmtBuckets"),
+      footer = shiny::tagList(
+        shiny::actionButton("hideAllColsBtn", "Hide All", class = "btn-outline-warning btn-sm"),
+        shiny::modalButton("Cancel"),
+        shiny::actionButton("applyColMgmt", "Apply", class = "btn-primary")
+      )
+    ))
+  })
+
+  output$colMgmtBuckets <- shiny::renderUI({
+    state <- col_mgmt_state()
+    shiny::req(state)
+    sortable::bucket_list(
+      header = NULL,
+      group_name = "col_mgmt_group",
+      orientation = "horizontal",
+      sortable::add_rank_list(
+        text = "Visible (top = leftmost column)",
+        labels = state$visible,
+        input_id = "col_visible_list"
+      ),
+      sortable::add_rank_list(
+        text = "Hidden",
+        labels = state$hidden,
+        input_id = "col_hidden_list"
+      )
+    )
+  })
+
+  shiny::observeEvent(input$hideAllColsBtn, {
+    state <- col_mgmt_state()
+    shiny::req(state)
+    col_mgmt_state(list(
+      visible = character(0),
+      hidden  = c(state$visible, state$hidden)
+    ))
+  })
+
+  shiny::observeEvent(input$applyColMgmt, {
+    shiny::req(values$extracted_df)
+    df_cols <- names(values$extracted_df)
+    visible <- if (is.null(input$col_visible_list)) character(0) else input$col_visible_list
+    hidden  <- if (is.null(input$col_hidden_list))  character(0) else input$col_hidden_list
+    visible_idx <- match(visible, df_cols) - 1L
+    hidden_idx  <- match(hidden,  df_cols) - 1L
+    values$col_order  <- c(visible_idx[!is.na(visible_idx)], hidden_idx[!is.na(hidden_idx)])
+    values$hidden_cols <- hidden
+    shiny::removeModal()
   })
 
   # Flagged count (placeholder)

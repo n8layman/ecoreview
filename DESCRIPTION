@@ -10,6 +10,8 @@ Description: Provides an interactive Shiny interface for human validation of
     databases created by the ecoextract package, allowing researchers to review
     OCR text alongside extracted records, edit fields, track changes with full
     audit trails, and calculate extraction accuracy metrics.
+URL: https://n8layman.github.io/ecoreview/, https://github.com/n8layman/ecoreview
+BugReports: https://github.com/n8layman/ecoreview/issues
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -19,6 +21,7 @@ Imports:
     DT,
     shinyjs,
     shinyFiles,
+    sortable,
     plotly,
     DBI,
     RSQLite,
