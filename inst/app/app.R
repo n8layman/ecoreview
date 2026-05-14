@@ -1250,7 +1250,7 @@ server <- function(input, output, session) {
   # (or after a new DB is connected and col_order has been reset to NULL)
   shiny::observeEvent(values$extracted_df, {
     if (!is.null(values$extracted_df) && is.null(values$col_order)) {
-      priority_cols <- get_ecoreview_option("priority_cols")
+      priority_cols <- getOption("ecoreview.priority_cols")
       df_cols <- names(values$extracted_df)
       if (!is.null(priority_cols)) {
         priority_idx <- match(priority_cols, df_cols)
@@ -1260,7 +1260,7 @@ server <- function(input, output, session) {
       } else {
         values$col_order <- seq_len(ncol(values$extracted_df)) - 1L
       }
-      visible_cols <- get_ecoreview_option("visible_cols")
+      visible_cols <- getOption("ecoreview.visible_cols")
       if (!is.null(visible_cols)) {
         values$hidden_cols <- setdiff(df_cols, visible_cols)
       }
