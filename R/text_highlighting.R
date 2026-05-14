@@ -152,6 +152,36 @@ clean_sentence_for_comparison <- function(sentence) {
   return(cleaned)
 }
 
+#' Get highlight match segments for client-side marking
+#'
+#' Runs server-side fuzzy matching and returns matched text segments with
+#' colors for the browser to apply via mark.js. Avoids re-rendering the
+#' OCR viewer HTML on every row selection.
+#'
+#' @param html Rendered HTML string to search within
+#' @param evidence Character vector of evidence sentences to match
+#' @param similarity_threshold Minimum similarity score (default 0.7)
+#' @return List of lists, each with `text`, `bg_color`, `border_color`
+#' @export
+get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
+  matches <- list()
+  for (i in seq_along(evidence)) {
+    ev <- evidence[[i]]
+    if (is.null(ev) || is.na(ev) || nchar(ev) < 10) next
+    clean_ev <- clean_sentence_for_comparison(ev)
+    matched_text <- find_best_match_in_html(html, clean_ev, similarity_threshold)
+    if (!is.null(matched_text)) {
+      idx <- (length(matches) %% length(HIGHLIGHT_COLORS)) + 1
+      matches[[length(matches) + 1]] <- list(
+        text         = matched_text,
+        bg_color     = HIGHLIGHT_COLORS[[idx]],
+        border_color = HIGHLIGHT_BORDERS[[idx]]
+      )
+    }
+  }
+  matches
+}
+
 #' Extract sentences from HTML or markdown text
 #'
 #' @param text HTML or markdown text to process

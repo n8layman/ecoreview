@@ -103,18 +103,35 @@ ui <- shiny::fluidPage(
       .modal-table-container { height: calc(100% - 80px); overflow: hidden; }
 
       mark.text-highlight {
-        background-color: #fff3cd !important;
-        border: 2px solid #ffc107 !important;
         border-radius: 4px;
         padding: 2px 4px;
-        box-shadow: 0 0 8px rgba(255, 193, 7, 0.3);
-        animation: highlightFlash 2s ease-in-out;
       }
 
-      @keyframes highlightFlash {
-        0% { background-color: #fff3cd; }
-        50% { background-color: #ffe066; }
-        100% { background-color: #fff3cd; }
+      /* Always show horizontal scrollbar — webkit height forces classic (non-overlay) mode on macOS */
+      .dataTables_scrollBody {
+        overflow-x: scroll !important;
+        scrollbar-width: thin;
+        scrollbar-color: #888 #f1f1f1;
+      }
+      .dataTables_scrollBody::-webkit-scrollbar {
+        height: 8px;
+        background-color: #f1f1f1;
+      }
+      .dataTables_scrollBody::-webkit-scrollbar-thumb {
+        background-color: #888;
+        border-radius: 4px;
+      }
+      .dataTables_scrollBody::-webkit-scrollbar-thumb:hover {
+        background-color: #555;
+      }
+
+      /* Keep cell text black during row selection and inline editing */
+      table.dataTable tbody tr.selected td,
+      table.dataTable tbody td.selected {
+        color: #212529 !important;
+      }
+      table.dataTable tbody td input {
+        color: #212529 !important;
       }
 
       .ocr-page { margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid #dee2e6; }
@@ -126,7 +143,40 @@ ui <- shiny::fluidPage(
     ")),
     shiny::tags$script(shiny::HTML("window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true,processEnvironments:true},options:{skipHtmlTags:['script','noscript','style','textarea','pre']}};")),
     shiny::tags$script(src = "https://polyfill.io/v3/polyfill.min.js?features=es6"),
-    shiny::tags$script(id = "MathJax-script", async = TRUE, src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js")
+    shiny::tags$script(id = "MathJax-script", async = TRUE, src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"),
+    shiny::tags$script(src = "https://cdn.jsdelivr.net/npm/mark.js@8.11.1/dist/mark.min.js"),
+    shiny::tags$script(shiny::HTML("
+Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
+  var el = document.getElementById('ocrViewer');
+  if (!el) return;
+  var instance = new Mark(el);
+  instance.unmark({
+    done: function() {
+      if (!data.segments || data.segments.length === 0) return;
+      var remaining = data.segments.length;
+      data.segments.forEach(function(seg) {
+        instance.mark(seg.text, {
+          separateWordSearch: false,
+          accuracy: 'partially',
+          className: 'text-highlight',
+          each: function(markEl) {
+            markEl.style.backgroundColor = seg.bg_color;
+            markEl.style.border = '2px solid ' + seg.border_color;
+            markEl.style.boxShadow = '0 0 8px ' + seg.border_color + '40';
+          },
+          done: function() {
+            remaining--;
+            if (remaining === 0) {
+              var first = el.querySelector('mark.text-highlight');
+              if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
+          }
+        });
+      });
+    }
+  });
+});
+    "))
   ),
 
 
@@ -320,6 +370,10 @@ server <- function(input, output, session) {
     doc_metadata = NULL,
     doc_metadata_original = NULL
   )
+
+  # Explicit trigger for full table re-renders; cell edits use replaceData instead
+  table_trigger <- shiny::reactiveVal(0)
+  dt_proxy <- DT::dataTableProxy("interactiveTable")
 
   # Define volumes for shinyFiles
   # Use the working directory captured by run_app(), or fall back to detection
@@ -731,6 +785,7 @@ server <- function(input, output, session) {
           records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
           values$extracted_df <- records
           values$original_df <- records
+          table_trigger(table_trigger() + 1)
         }, error = function(e) NULL)
 
         values$edit_trigger <- values$edit_trigger + 1
@@ -804,6 +859,7 @@ server <- function(input, output, session) {
       records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
       values$extracted_df <- records
       values$original_df <- records
+      table_trigger(table_trigger() + 1)
     }, error = function(e) {
       shiny::showNotification(paste("Error loading records:", e$message), type = "error")
     })
@@ -985,6 +1041,7 @@ server <- function(input, output, session) {
         refreshed <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
         values$extracted_df <- refreshed
         values$original_df <- refreshed
+        table_trigger(table_trigger() + 1)
       }, error = function(e) {
         values$original_df <- values$extracted_df
         shiny::showNotification(paste("Warning: could not reload records:", e$message), type = "warning", duration = 5)
@@ -1017,25 +1074,34 @@ server <- function(input, output, session) {
     shinyjs::html("acceptBtn", '<i class="fa fa-check"></i> Verify Records')
   })
 
-  # OCR viewer output - renders tensorlake JSON to HTML with highlighting
-  output$ocrViewer <- shiny::renderUI({
+  # Cache base OCR HTML — only recomputes when a new document loads
+  ocr_base_html <- shiny::eventReactive(values$markdown_text, {
     shiny::req(values$markdown_text)
+    ecoreview::render_tensorlake_html(values$markdown_text)
+  })
 
-    rendered_html <- ecoreview::render_tensorlake_html(values$markdown_text)
-
-    if (!is.null(values$selected_evidence) && length(values$selected_evidence) > 0) {
-      rendered_html <- tryCatch({
-        ecoreview::highlight_similar_text(rendered_html, values$selected_evidence)
-      }, error = function(e) {
-        rendered_html
-      })
-    }
-
+  # OCR viewer output - renders base HTML once per document (no highlights baked in)
+  output$ocrViewer <- shiny::renderUI({
+    shiny::req(ocr_base_html())
     shiny::tagList(
-      shiny::HTML(rendered_html),
+      shiny::HTML(ocr_base_html()),
       shiny::tags$script(shiny::HTML("setTimeout(function(){if(window.MathJax&&window.MathJax.typesetPromise){window.MathJax.typesetPromise();}},100);"))
     )
   })
+
+  # When selected evidence changes, compute matches server-side and send to mark.js
+  shiny::observeEvent(values$selected_evidence, {
+    shiny::req(ocr_base_html())
+    segments <- if (!is.null(values$selected_evidence) && length(values$selected_evidence) > 0) {
+      tryCatch(
+        ecoreview::get_highlight_matches(ocr_base_html(), values$selected_evidence),
+        error = function(e) list()
+      )
+    } else {
+      list()
+    }
+    session$sendCustomMessage("applyOCRHighlights", list(segments = segments))
+  }, ignoreNULL = FALSE)
 
   # Database export handler - exports all records joined with document metadata to CSV
   output$exportDbBtn <- shiny::downloadHandler(
@@ -1078,49 +1144,51 @@ server <- function(input, output, session) {
     contentType = "application/x-sqlite3"
   )
 
-  # Interactive data table
+  # Interactive data table — only re-renders on explicit table_trigger(); cell edits use replaceData
   output$interactiveTable <- DT::renderDataTable({
-    shiny::req(values$extracted_df)
-    values$edit_trigger
+    table_trigger()
+    shiny::isolate({
+      shiny::req(values$extracted_df)
 
-    display_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
-      values$extracted_df[is.na(values$extracted_df$deleted_by_user), , drop = FALSE]
-    } else {
-      values$extracted_df
-    }
+      display_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
+        values$extracted_df[is.na(values$extracted_df$deleted_by_user), , drop = FALSE]
+      } else {
+        values$extracted_df
+      }
 
-    if (is.null(display_data) || nrow(display_data) == 0) {
-      return(DT::datatable(
-        data.frame(Message = "No records found for this document"),
-        options = list(dom = 't'),
-        rownames = FALSE
-      ))
-    }
+      if (is.null(display_data) || nrow(display_data) == 0) {
+        return(DT::datatable(
+          data.frame(Message = "No records found for this document"),
+          options = list(dom = 't'),
+          rownames = FALSE
+        ))
+      }
 
-    # Reorder columns per col_order, then drop hidden ones
-    if (!is.null(values$col_order)) {
-      ordered_names <- names(values$extracted_df)[values$col_order + 1]
-      visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
-      visible_names <- visible_names[visible_names %in% names(display_data)]
-      display_data <- display_data[, visible_names, drop = FALSE]
-    }
+      # Reorder columns per col_order, then drop hidden ones
+      if (!is.null(values$col_order)) {
+        ordered_names <- names(values$extracted_df)[values$col_order + 1]
+        visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
+        visible_names <- visible_names[visible_names %in% names(display_data)]
+        display_data <- display_data[, visible_names, drop = FALSE]
+      }
 
-    dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
-                                             disable_cols = c("id", "record_id"))
+      dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
+                                               disable_cols = c("id", "record_id"))
 
-    if ("id" %in% names(display_data)) {
-      tryCatch({
-        dt <- ecoreview::apply_deleted_row_styling(dt, display_data)
-        all_edited_cells <- ecoreview::get_all_edited_cells(values$document_id, values$unsaved_changes)
-        dt <- ecoreview::apply_edited_styling(dt, values$extracted_df, all_edited_cells)
-        restored_ids <- ecoreview::get_restored_interaction_ids(values$document_id)
-        dt <- ecoreview::apply_restored_row_styling(dt, display_data, restored_ids)
-      }, error = function(e) {
-        # Styling functions may not exist, continue without styling
-      })
-    }
+      if ("id" %in% names(display_data)) {
+        tryCatch({
+          dt <- ecoreview::apply_deleted_row_styling(dt, display_data)
+          all_edited_cells <- ecoreview::get_all_edited_cells(values$document_id, values$unsaved_changes)
+          dt <- ecoreview::apply_edited_styling(dt, values$extracted_df, all_edited_cells)
+          restored_ids <- ecoreview::get_restored_interaction_ids(values$document_id)
+          dt <- ecoreview::apply_restored_row_styling(dt, display_data, restored_ids)
+        }, error = function(e) {
+          # Styling functions may not exist, continue without styling
+        })
+      }
 
-    return(dt)
+      return(dt)
+    })
   })
 
   # Handle cell edits
@@ -1160,7 +1228,15 @@ server <- function(input, output, session) {
           record_id_snapshot = as.character(current_record_id)
         )
 
-        values$edit_trigger <- values$edit_trigger + 1
+        # Update display in-place without resetting page
+        ordered_names <- names(values$extracted_df)[values$col_order + 1]
+        visible_names  <- ordered_names[!ordered_names %in% values$hidden_cols]
+        repl_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
+          values$extracted_df[is.na(values$extracted_df$deleted_by_user), visible_names, drop = FALSE]
+        } else {
+          values$extracted_df[, visible_names, drop = FALSE]
+        }
+        DT::replaceData(dt_proxy, repl_data, resetPaging = FALSE, rownames = FALSE)
       }
     }
   })
@@ -1180,16 +1256,6 @@ server <- function(input, output, session) {
             values$selected_evidence <- row_data$all_supporting_source_sentences
           })
 
-          shinyjs::delay(500, {
-            shinyjs::runjs("
-              setTimeout(function() {
-                var firstHighlight = document.querySelector('mark.text-highlight');
-                if (firstHighlight) {
-                  firstHighlight.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'});
-                }
-              }, 100);
-            ")
-          })
         } else {
           values$selected_evidence <- NULL
         }
@@ -1212,6 +1278,7 @@ server <- function(input, output, session) {
 
     values$extracted_df <- rbind(values$extracted_df, new_row)
     values$edit_trigger <- values$edit_trigger + 1
+    table_trigger(table_trigger() + 1)
     shiny::showNotification("New row added. Click 'Verify Records' to save changes.", type = "message", duration = 3)
   })
 
@@ -1227,6 +1294,7 @@ server <- function(input, output, session) {
         values$extracted_df <- df
       }
       values$edit_trigger <- values$edit_trigger + 1
+      table_trigger(table_trigger() + 1)
       shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.", type = "message", duration = 3)
     } else {
       shiny::showNotification("Please select a row to delete.", type = "warning", duration = 3)
@@ -1244,6 +1312,7 @@ server <- function(input, output, session) {
       shiny::showNotification("Hiding deleted interactions", type = "message", duration = 2)
     }
     values$edit_trigger <- values$edit_trigger + 1
+    table_trigger(table_trigger() + 1)
   })
 
   # Initialise col_order to 0-based default when the first document loads
@@ -1332,6 +1401,7 @@ server <- function(input, output, session) {
     hidden_idx  <- match(hidden,  df_cols) - 1L
     values$col_order  <- c(visible_idx[!is.na(visible_idx)], hidden_idx[!is.na(hidden_idx)])
     values$hidden_cols <- hidden
+    table_trigger(table_trigger() + 1)
     shiny::removeModal()
   })
 
