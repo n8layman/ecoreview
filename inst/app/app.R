@@ -62,12 +62,18 @@ ui <- shiny::fluidPage(
   shiny::titlePanel(
     shiny::div(style = "display: flex; justify-content: space-between; align-items: center; margin: 0;",
       shiny::span(app_title),
-      if (!is.null(github_url)) {
-        shiny::tags$a(href = github_url, target = "_blank",
-               style = "font-size: 14px; color: #6c757d; text-decoration: none; margin-left: 20px;",
-               title = "View source code on GitHub",
-               shiny::HTML('<i class="fab fa-github"></i> Source'))
-      }
+      shiny::div(style = "display: flex; align-items: center; gap: 12px;",
+        shiny::span(
+          style = "font-size: 12px; color: #adb5bd;",
+          paste0("v", tryCatch(as.character(packageVersion("ecoreview")), error = function(e) ""))
+        ),
+        if (!is.null(github_url)) {
+          shiny::tags$a(href = github_url, target = "_blank",
+                 style = "font-size: 14px; color: #6c757d; text-decoration: none;",
+                 title = "View source code on GitHub",
+                 shiny::HTML('<i class="fab fa-github"></i> Source'))
+        }
+      )
     )
   ),
 
