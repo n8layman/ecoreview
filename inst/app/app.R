@@ -284,6 +284,11 @@ Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
               )
             )
           )
+        ),
+        shiny::tabPanel("Reasoning",
+          shiny::div(style = "padding: 15px; overflow-y: auto;",
+            shiny::uiOutput("reasoningViewer")
+          )
         )
       )
     ),
@@ -939,6 +944,57 @@ server <- function(input, output, session) {
       style = "height: calc(100vh - 280px); width: 100%; border: 1px solid #ddd;",
       type = "application/pdf"
     )
+  })
+
+  # Track whether the bias warning has been acknowledged for the current document
+  reasoning_revealed <- shiny::reactiveVal(FALSE)
+  shiny::observeEvent(values$document_id, { reasoning_revealed(FALSE) }, ignoreNULL = FALSE)
+  shiny::observeEvent(input$showReasoningBtn, { reasoning_revealed(TRUE) })
+
+  # Reasoning viewer — gated behind bias warning until user explicitly reveals
+  output$reasoningViewer <- shiny::renderUI({
+    shiny::req(values$document_id, values$db_conn)
+
+    if (!reasoning_revealed()) {
+      return(shiny::div(
+        style = "max-width: 520px; margin: 60px auto; text-align: center;",
+        shiny::div(
+          class = "alert alert-warning",
+          style = "font-size: 1em; padding: 20px;",
+          shiny::tags$h5(shiny::tags$strong("Bias Warning"), style = "margin-bottom: 12px;"),
+          shiny::p(
+            "Reading the model's reasoning before grading can bias your evaluation.",
+            shiny::tags$br(),
+            shiny::tags$strong("Only proceed after you have finished reviewing all records for this document.")
+          )
+        ),
+        shiny::actionButton(
+          "showReasoningBtn", "I understand — show reasoning",
+          class = "btn-warning btn-lg"
+        )
+      ))
+    }
+
+    tryCatch({
+      con <- DBI::dbConnect(RSQLite::SQLite(), values$db_conn)
+      on.exit(DBI::dbDisconnect(con), add = TRUE)
+      row <- DBI::dbGetQuery(con,
+        "SELECT extraction_reasoning FROM documents WHERE document_id = ?",
+        params = list(as.integer(values$document_id))
+      )
+      if (nrow(row) == 0 || is.na(row$extraction_reasoning[1]) || nchar(row$extraction_reasoning[1]) == 0) {
+        return(shiny::div(style = "color: #6c757d; padding: 20px; text-align: center;",
+          shiny::p("No extraction reasoning available for this document.")
+        ))
+      }
+      html <- commonmark::markdown_html(row$extraction_reasoning[1])
+      shiny::div(
+        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.9em;",
+        shiny::HTML(html)
+      )
+    }, error = function(e) {
+      shiny::p(paste("Error loading reasoning:", e$message), style = "color: #dc3545;")
+    })
   })
 
   # Accept button handler - marks document as reviewed and saves edits
