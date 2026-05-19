@@ -894,9 +894,10 @@ server <- function(input, output, session) {
 
     records_info <- tryCatch({
       records <- ecoextract::get_records(db_conn = values$db_conn)
+      reviewed_doc_ids <- if (has_reviewed_at) docs$document_id[!is.na(docs$reviewed_at)] else integer(0)
       list(
-        total = nrow(records),
-        verified = if ("human_edited" %in% names(records)) sum(records$human_edited == TRUE, na.rm = TRUE) else 0
+        total    = nrow(records),
+        verified = sum(records$document_id %in% reviewed_doc_ids, na.rm = TRUE)
       )
     }, error = function(e) list(total = 0, verified = 0))
 
