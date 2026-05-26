@@ -111,6 +111,38 @@ ui <- shiny::fluidPage(
       mark.text-highlight {
         border-radius: 4px;
         padding: 2px 4px;
+        cursor: help;
+      }
+
+      #ocr-hl-tooltip {
+        position: fixed;
+        background: rgba(33, 37, 41, 0.95);
+        color: #f8f9fa;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        max-width: 420px;
+        z-index: 99999;
+        pointer-events: none;
+        display: none;
+        line-height: 1.6;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.35);
+        white-space: normal;
+      }
+      #ocr-hl-tooltip .tt-label {
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #adb5bd;
+        margin-bottom: 6px;
+      }
+      #ocr-hl-tooltip ol {
+        margin: 0;
+        padding-left: 18px;
+      }
+      #ocr-hl-tooltip li {
+        margin-bottom: 4px;
       }
 
       /* Always show horizontal scrollbar — webkit height forces classic (non-overlay) mode on macOS */
@@ -155,6 +187,25 @@ ui <- shiny::fluidPage(
 Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
   var el = document.getElementById('ocrViewer');
   if (!el) return;
+
+  // Ensure tooltip element exists
+  var tip = document.getElementById('ocr-hl-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'ocr-hl-tooltip';
+    document.body.appendChild(tip);
+  }
+
+  // Build tooltip inner HTML from sentences list
+  var tooltipHTML = '';
+  if (data.sentences && data.sentences.length > 0) {
+    tooltipHTML = '<div class="tt-label">Supporting sentences</div><ol>';
+    data.sentences.forEach(function(s) {
+      tooltipHTML += '<li>' + s.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
+    });
+    tooltipHTML += '</ol>';
+  }
+
   var instance = new Mark(el);
   instance.unmark({
     done: function() {
@@ -175,6 +226,27 @@ Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
             if (remaining === 0) {
               var first = el.querySelector('mark.text-highlight');
               if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
+              // Attach tooltip hover to all highlighted marks
+              if (tooltipHTML) {
+                el.querySelectorAll('mark.text-highlight').forEach(function(m) {
+                  m.addEventListener('mouseenter', function(e) {
+                    tip.innerHTML = tooltipHTML;
+                    tip.style.display = 'block';
+                  });
+                  m.addEventListener('mousemove', function(e) {
+                    var x = e.clientX + 14;
+                    var y = e.clientY + 14;
+                    // Keep tooltip within viewport
+                    if (x + 440 > window.innerWidth) x = e.clientX - 440;
+                    if (y + tip.offsetHeight > window.innerHeight) y = e.clientY - tip.offsetHeight - 10;
+                    tip.style.left = x + 'px';
+                    tip.style.top  = y + 'px';
+                  });
+                  m.addEventListener('mouseleave', function() {
+                    tip.style.display = 'none';
+                  });
+                });
+              }
             }
           }
         });
@@ -1163,7 +1235,12 @@ server <- function(input, output, session) {
     } else {
       list()
     }
-    session$sendCustomMessage("applyOCRHighlights", list(segments = segments))
+    sentences <- if (!is.null(values$selected_evidence) && length(values$selected_evidence) > 0) {
+      as.list(values$selected_evidence)
+    } else {
+      list()
+    }
+    session$sendCustomMessage("applyOCRHighlights", list(segments = segments, sentences = sentences))
   }, ignoreNULL = FALSE)
 
   # Database export handler - exports all records joined with document metadata to CSV
