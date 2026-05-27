@@ -199,7 +199,7 @@ Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
   // Build tooltip inner HTML from sentences list
   var tooltipHTML = '';
   if (data.sentences && data.sentences.length > 0) {
-    tooltipHTML = '<div class="tt-label">Supporting sentences</div><ol>';
+    tooltipHTML = '<div class=\"tt-label\">Supporting sentences</div><ol>';
     data.sentences.forEach(function(s) {
       tooltipHTML += '<li>' + s.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
     });
