@@ -179,8 +179,6 @@ ui <- shiny::fluidPage(
       .tensorlake-table th, .tensorlake-table td { border: 1px solid #ccc; padding: 6px 10px; }
       .tensorlake-table th { background: #f2f2f2; }
     ")),
-    shiny::tags$script(shiny::HTML("window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true,processEnvironments:true},options:{skipHtmlTags:['script','noscript','style','textarea','pre']}};")),
-    shiny::tags$script(id = "MathJax-script", async = TRUE, src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"),
     shiny::tags$script(src = "https://cdn.jsdelivr.net/npm/mark.js@8.11.1/dist/mark.min.js"),
     shiny::tags$script(shiny::HTML("
 Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
@@ -1217,10 +1215,7 @@ server <- function(input, output, session) {
   # OCR viewer output - renders base HTML once per document (no highlights baked in)
   output$ocrViewer <- shiny::renderUI({
     shiny::req(ocr_base_html())
-    shiny::tagList(
-      shiny::HTML(ocr_base_html()),
-      shiny::tags$script(shiny::HTML("setTimeout(function(){if(window.MathJax&&window.MathJax.typesetPromise){window.MathJax.typesetPromise();}},100);"))
-    )
+    shiny::HTML(ocr_base_html())
   })
 
   # When selected evidence changes, compute matches server-side and send to mark.js
