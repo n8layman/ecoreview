@@ -23,6 +23,12 @@ render_tensorlake_html <- function(doc_content) {
 
   # Helper: convert page elements to Markdown
   build_page_markdown <- function(page) {
+    # Mistral OCR format: {"index": N, "markdown": "..."}
+    if (!is.null(page$markdown)) {
+      return(page$markdown)
+    }
+
+    # Tensorlake format: page_header / section_header / text fields
     md_parts <- list()
 
     # Page header (citation/title)
@@ -81,6 +87,8 @@ render_tensorlake_html <- function(doc_content) {
 
     page_num <- if (!is.null(page$page_number)) {
       paste0("<div class='page-number'>Page ", page$page_number, "</div>")
+    } else if (!is.null(page$index)) {
+      paste0("<div class='page-number'>Page ", page$index + 1L, "</div>")
     } else ""
 
     paste0("<div class='ocr-page'>", page_num, md_html, table_html, "</div>")
