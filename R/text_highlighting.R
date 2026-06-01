@@ -174,6 +174,88 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
   matches
 }
 
+#' Build a pre-injected evidence index for the OCR viewer
+#'
+#' Collects all unique supporting sentences from every row in the extracted
+#' data frame, locates each in the rendered HTML via plain-text matching,
+#' and injects \code{<span class="ecr-ev" data-ev-id="N">} wrappers in
+#' place. Returns the modified HTML (rendered once per document) and a
+#' row-to-ev-id mapping for the JS client so row switching is a pure
+#' CSS-class toggle with no further server computation.
+#'
+#' @param html Rendered HTML string (from render_tensorlake_html)
+#' @param extracted_df Data frame containing all_supporting_source_sentences
+#' @param similarity_threshold Minimum cosine-trigram similarity (default 0.7)
+#' @return Named list: \code{html} (modified HTML) and \code{row_map}
+#'   (list keyed by 0-based row index, each element a list of ev_ids)
+#' @export
+build_evidence_index <- function(html, extracted_df,
+                                 similarity_threshold = 0.7) {
+  if (!"all_supporting_source_sentences" %in% names(extracted_df)) {
+    return(list(html = html, row_map = list()))
+  }
+
+  plain_text    <- html_to_plain_text(html)
+  modified_html <- html
+
+  # sentence text -> ev_id  (first unique matched text wins)
+  sentence_to_id <- list()
+  # matched text  -> ev_id  (dedup: two sentences matching same span share id)
+  matched_to_id  <- list()
+  ev_id_counter  <- 0L
+
+  # Parse sentences per row (keep NULLs for rows with no data)
+  sentences_by_row <- lapply(seq_len(nrow(extracted_df)), function(i) {
+    raw <- extracted_df$all_supporting_source_sentences[[i]]
+    if (is.null(raw) || is.na(raw) || nchar(trimws(raw)) == 0) {
+      return(character(0))
+    }
+    sents <- tryCatch(jsonlite::fromJSON(raw), error = function(e) as.character(raw))
+    sents <- sents[!is.na(sents) & nchar(trimws(sents)) >= 10]
+    sents
+  })
+
+  # Process unique sentences in document order
+  seen <- character(0)
+  for (row_sents in sentences_by_row) {
+    for (sent in row_sents) {
+      if (sent %in% seen) next
+      seen <- c(seen, sent)
+
+      clean_sent <- clean_sentence_for_comparison(sent)
+      matched    <- find_best_match_in_html(plain_text, clean_sent,
+                                            similarity_threshold)
+      if (is.null(matched)) next
+
+      # Reuse ev_id if this exact text was already injected
+      if (!is.null(matched_to_id[[matched]])) {
+        sentence_to_id[[sent]] <- matched_to_id[[matched]]
+      } else {
+        ev_id                   <- ev_id_counter
+        ev_id_counter           <- ev_id_counter + 1L
+        matched_to_id[[matched]] <- ev_id
+        sentence_to_id[[sent]]  <- ev_id
+
+        span          <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
+                                '">', matched, "</span>")
+        modified_html <- sub(matched, span, modified_html, fixed = TRUE)
+      }
+    }
+  }
+
+  # Build row_map: "0"-based string key -> list of ev_ids (preserving order)
+  row_map <- stats::setNames(
+    lapply(seq_len(nrow(extracted_df)), function(i) {
+      sents  <- sentences_by_row[[i]]
+      ids    <- unique(unlist(lapply(sents, function(s) sentence_to_id[[s]])))
+      as.list(ids)
+    }),
+    as.character(seq_len(nrow(extracted_df)) - 1L)
+  )
+
+  list(html = modified_html, row_map = row_map)
+}
+
 #' Extract sentences from HTML or markdown text
 #'
 #' @param text HTML or markdown text to process

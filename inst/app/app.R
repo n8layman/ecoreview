@@ -108,10 +108,12 @@ ui <- shiny::fluidPage(
       .modal-close:hover { background: #c82333; }
       .modal-table-container { height: calc(100% - 80px); overflow: hidden; }
 
-      mark.text-highlight {
-        border-radius: 4px;
-        padding: 2px 4px;
+      /* Pre-injected evidence spans */
+      .ecr-ev {
+        border-radius: 3px;
+        padding: 1px 2px;
         cursor: help;
+        transition: background-color 0.15s, border 0.15s;
       }
 
       #ocr-hl-tooltip {
@@ -179,78 +181,91 @@ ui <- shiny::fluidPage(
       .tensorlake-table th, .tensorlake-table td { border: 1px solid #ccc; padding: 6px 10px; }
       .tensorlake-table th { background: #f2f2f2; }
     ")),
-    shiny::tags$script(src = "mark.min.js"),
     shiny::tags$script(shiny::HTML("
-Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
-  var el = document.getElementById('ocrViewer');
-  if (!el) return;
+// ---- Evidence index (set once per document) ----
+var ecrRowMap = {};
+var ecrCurrentSentences = [];
 
-  // Ensure tooltip element exists
-  var tip = document.getElementById('ocr-hl-tooltip');
-  if (!tip) {
-    tip = document.createElement('div');
-    tip.id = 'ocr-hl-tooltip';
-    document.body.appendChild(tip);
-  }
-
-  // Build tooltip inner HTML from sentences list
-  var tooltipHTML = '';
-  if (data.sentences && data.sentences.length > 0) {
-    tooltipHTML = '<div class=\"tt-label\">Supporting sentences</div><ol>';
-    data.sentences.forEach(function(s) {
-      tooltipHTML += '<li>' + s.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
-    });
-    tooltipHTML += '</ol>';
-  }
-
-  var instance = new Mark(el);
-  instance.unmark({
-    done: function() {
-      if (!data.segments || data.segments.length === 0) return;
-      var remaining = data.segments.length;
-      data.segments.forEach(function(seg) {
-        instance.mark(seg.text, {
-          separateWordSearch: false,
-          accuracy: 'partially',
-          className: 'text-highlight',
-          each: function(markEl) {
-            markEl.style.backgroundColor = seg.bg_color;
-            markEl.style.border = '2px solid ' + seg.border_color;
-            markEl.style.boxShadow = '0 0 8px ' + seg.border_color + '40';
-          },
-          done: function() {
-            remaining--;
-            if (remaining === 0) {
-              var first = el.querySelector('mark.text-highlight');
-              if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
-              // Attach tooltip hover to all highlighted marks
-              if (tooltipHTML) {
-                el.querySelectorAll('mark.text-highlight').forEach(function(m) {
-                  m.addEventListener('mouseenter', function(e) {
-                    tip.innerHTML = tooltipHTML;
-                    tip.style.display = 'block';
-                  });
-                  m.addEventListener('mousemove', function(e) {
-                    var x = e.clientX + 14;
-                    var y = e.clientY + 14;
-                    // Keep tooltip within viewport
-                    if (x + 440 > window.innerWidth) x = e.clientX - 440;
-                    if (y + tip.offsetHeight > window.innerHeight) y = e.clientY - tip.offsetHeight - 10;
-                    tip.style.left = x + 'px';
-                    tip.style.top  = y + 'px';
-                  });
-                  m.addEventListener('mouseleave', function() {
-                    tip.style.display = 'none';
-                  });
-                });
-              }
-            }
-          }
-        });
-      });
-    }
+Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
+  ecrRowMap = data.row_map || {};
+  // Clear any leftover highlights from the previous document
+  document.querySelectorAll('.ecr-ev').forEach(function(el) {
+    el.classList.remove('ecr-ev-active');
+    el.style.backgroundColor = '';
+    el.style.border = '';
+    el.style.boxShadow = '';
   });
+  ecrCurrentSentences = [];
 });
+
+// ---- Highlight a row's evidence spans ----
+var ECR_BG      = ['#fff3cd','#cce5ff','#d4edda','#f8d7da','#e2d5f1','#d1ecf1','#ffeeba','#c3e6cb'];
+var ECR_BORDER  = ['#ffc107','#007bff','#28a745','#dc3545','#6f42c1','#17a2b8','#fd7e14','#20c997'];
+
+Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
+  // Clear previous highlights
+  document.querySelectorAll('.ecr-ev-active').forEach(function(el) {
+    el.classList.remove('ecr-ev-active');
+    el.style.backgroundColor = '';
+    el.style.border = '';
+    el.style.boxShadow = '';
+  });
+
+  ecrCurrentSentences = data.sentences || [];
+
+  if (data.row_index === null || data.row_index === undefined) return;
+
+  var ids = ecrRowMap[String(data.row_index)] || [];
+  ids.forEach(function(id, colorIdx) {
+    var ci = colorIdx % ECR_BG.length;
+    document.querySelectorAll('[data-ev-id=\"' + id + '\"]').forEach(function(el) {
+      el.classList.add('ecr-ev-active');
+      el.style.backgroundColor = ECR_BG[ci];
+      el.style.border = '2px solid ' + ECR_BORDER[ci];
+      el.style.boxShadow = '0 0 8px ' + ECR_BORDER[ci] + '40';
+    });
+  });
+
+  // Scroll first highlighted span into view
+  var first = document.querySelector('.ecr-ev-active');
+  if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
+});
+
+// ---- Tooltip on highlighted spans ----
+(function() {
+  var tip = null;
+  function getTooltip() {
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'ocr-hl-tooltip';
+      document.body.appendChild(tip);
+    }
+    return tip;
+  }
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('.ecr-ev-active');
+    if (!el || ecrCurrentSentences.length === 0) return;
+    var t = getTooltip();
+    var html = '<div class=\"tt-label\">Supporting sentences</div><ol>';
+    ecrCurrentSentences.forEach(function(s) {
+      html += '<li>' + String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
+    });
+    html += '</ol>';
+    t.innerHTML = html;
+    t.style.display = 'block';
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!tip || tip.style.display === 'none') return;
+    var x = e.clientX + 14, y = e.clientY + 14;
+    if (x + 440 > window.innerWidth)  x = e.clientX - 440;
+    if (y + tip.offsetHeight > window.innerHeight) y = e.clientY - tip.offsetHeight - 10;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  document.addEventListener('mouseout', function(e) {
+    if (!e.target.closest('.ecr-ev-active') && tip) tip.style.display = 'none';
+  });
+})();
     "))
   ),
 
@@ -1212,30 +1227,36 @@ server <- function(input, output, session) {
     ecoreview::render_tensorlake_html(values$markdown_text)
   })
 
-  # OCR viewer output - renders base HTML once per document (no highlights baked in)
+  # Holds the HTML with evidence spans injected (updated once per document)
+  ocr_display_html <- shiny::reactiveVal(NULL)
+
+  # OCR viewer — renders the span-injected HTML
   output$ocrViewer <- shiny::renderUI({
-    shiny::req(ocr_base_html())
-    shiny::HTML(ocr_base_html())
+    shiny::req(ocr_display_html())
+    shiny::HTML(ocr_display_html())
   })
 
-  # When selected evidence changes, compute matches server-side and send to mark.js
-  shiny::observeEvent(values$selected_evidence, {
-    shiny::req(ocr_base_html())
-    segments <- if (!is.null(values$selected_evidence) && length(values$selected_evidence) > 0) {
-      tryCatch(
-        ecoreview::get_highlight_matches(ocr_base_html(), values$selected_evidence),
-        error = function(e) list()
-      )
-    } else {
-      list()
+  # When a new document's OCR HTML is ready, inject evidence spans for all rows
+  # and send the row->span-id map to JS once (row switching is then a CSS toggle)
+  shiny::observeEvent(ocr_base_html(), {
+    base_html <- ocr_base_html()
+    df        <- shiny::isolate(values$extracted_df)
+
+    # Always display something immediately
+    ocr_display_html(base_html)
+
+    if (is.null(df) || nrow(df) == 0) {
+      session$sendCustomMessage("setEvidenceIndex", list(row_map = list()))
+      return()
     }
-    sentences <- if (!is.null(values$selected_evidence) && length(values$selected_evidence) > 0) {
-      as.list(values$selected_evidence)
-    } else {
-      list()
-    }
-    session$sendCustomMessage("applyOCRHighlights", list(segments = segments, sentences = sentences))
-  }, ignoreNULL = FALSE)
+
+    result <- tryCatch(
+      ecoreview::build_evidence_index(base_html, df),
+      error = function(e) list(html = base_html, row_map = list())
+    )
+    ocr_display_html(result$html)
+    session$sendCustomMessage("setEvidenceIndex", list(row_map = result$row_map))
+  }, ignoreNULL = TRUE)
 
   # Database export handler - exports all records joined with document metadata to CSV
   output$exportDbBtn <- shiny::downloadHandler(
@@ -1375,27 +1396,31 @@ server <- function(input, output, session) {
     }
   })
 
-  # Handle row selection for text highlighting
+  # Handle row selection — update selected_evidence and trigger JS span highlight
   shiny::observe({
     if (!is.null(input$interactiveTable_rows_selected) && length(input$interactiveTable_rows_selected) > 0) {
       shiny::req(values$extracted_df)
       selected_row <- display_to_actual_row(input$interactiveTable_rows_selected[1])
       if (!is.na(selected_row) && selected_row <= nrow(values$extracted_df)) {
         row_data <- values$extracted_df[selected_row, ]
-        if ("all_supporting_source_sentences" %in% names(row_data) && !is.na(row_data$all_supporting_source_sentences)) {
-          tryCatch({
-            sentences_array <- jsonlite::fromJSON(row_data$all_supporting_source_sentences)
-            values$selected_evidence <- sentences_array
-          }, error = function(e) {
-            values$selected_evidence <- row_data$all_supporting_source_sentences
-          })
-
-        } else {
-          values$selected_evidence <- NULL
+        sentences <- character(0)
+        if ("all_supporting_source_sentences" %in% names(row_data) &&
+            !is.na(row_data$all_supporting_source_sentences)) {
+          sentences <- tryCatch(
+            jsonlite::fromJSON(row_data$all_supporting_source_sentences),
+            error = function(e) as.character(row_data$all_supporting_source_sentences)
+          )
         }
+        values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
+        session$sendCustomMessage("highlightEvidenceRow", list(
+          row_index = selected_row - 1L,
+          sentences = as.list(sentences)
+        ))
       }
     } else {
       values$selected_evidence <- NULL
+      session$sendCustomMessage("highlightEvidenceRow",
+                                list(row_index = NULL, sentences = list()))
     }
   })
 

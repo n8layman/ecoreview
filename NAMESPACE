@@ -3,6 +3,7 @@
 export(apply_deleted_row_styling)
 export(apply_edited_styling)
 export(apply_restored_row_styling)
+export(build_evidence_index)
 export(cleanup_temp_files)
 export(collect_benchmark_results)
 export(combine_db)
