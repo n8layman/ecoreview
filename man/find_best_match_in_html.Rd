@@ -2,21 +2,23 @@
 % Please edit documentation in R/text_highlighting.R
 \name{find_best_match_in_html}
 \alias{find_best_match_in_html}
-\title{Find best matching text segment in HTML}
+\title{Find best matching span in plain text for an evidence fragment}
 \usage{
-find_best_match_in_html(html_text, clean_evidence, threshold)
+find_best_match_in_html(plain_text, clean_evidence, threshold)
 }
 \arguments{
-\item{html_text}{The HTML text to search}
+\item{plain_text}{Plain text of the document (pre-stripped HTML)}
 
-\item{clean_evidence}{Cleaned evidence sentence}
+\item{clean_evidence}{Cleaned evidence fragment}
 
 \item{threshold}{Similarity threshold}
 }
 \value{
-Matched text segment or NULL
+Matched text span from plain_text, or NULL
 }
 \description{
-Find best matching text segment in HTML
+The evidence fragment IS the unit to locate. We search the plain text
+(what mark.js sees in the DOM) using a sliding window of the same length
+as the fragment so mark.js can find it directly.
 }
 \keyword{internal}

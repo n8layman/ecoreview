@@ -69,71 +69,60 @@ highlight_similar_text <- function(text, all_source_sentences, similarity_thresh
   return(working_text)
 }
 
-#' Find best matching text segment in HTML
+#' Strip HTML tags and decode entities to plain text
 #'
-#' @param html_text The HTML text to search
-#' @param clean_evidence Cleaned evidence sentence
-#' @param threshold Similarity threshold
-#' @return Matched text segment or NULL
+#' @param html_text Raw HTML string
+#' @return Plain text as it would appear in the rendered DOM
 #' @keywords internal
-find_best_match_in_html <- function(html_text, clean_evidence, threshold) {
-  # Extract text segments from HTML (content between tags)
-  # Match text that's not inside a tag
-  text_segments <- stringr::str_extract_all(html_text, "(?<=>)[^<]+(?=<)")[[1]]
+html_to_plain_text <- function(html_text) {
+  plain <- stringr::str_remove_all(html_text, "<[^>]+>")
+  plain <- stringr::str_replace_all(plain, "&nbsp;",  " ")
+  plain <- stringr::str_replace_all(plain, "&amp;",   "&")
+  plain <- stringr::str_replace_all(plain, "&lt;",    "<")
+  plain <- stringr::str_replace_all(plain, "&gt;",    ">")
+  plain <- stringr::str_replace_all(plain, "&quot;",  "\"")
+  plain <- stringr::str_replace_all(plain, "&#39;",   "'")
+  stringr::str_squish(plain)
+}
 
-  # Also get text at start/end that might not be between tags
-  text_segments <- c(text_segments, stringr::str_extract_all(html_text, "^[^<]+")[[1]])
+#' Find best matching span in plain text for an evidence fragment
+#'
+#' The evidence fragment IS the unit to locate. We search the plain text
+#' (what mark.js sees in the DOM) using a sliding window of the same length
+#' as the fragment so mark.js can find it directly.
+#'
+#' @param plain_text Plain text of the document (pre-stripped HTML)
+#' @param clean_evidence Cleaned evidence fragment
+#' @param threshold Similarity threshold
+#' @return Matched text span from plain_text, or NULL
+#' @keywords internal
+find_best_match_in_html <- function(plain_text, clean_evidence, threshold) {
+  ev_len <- nchar(clean_evidence)
+  if (ev_len < 10 || nchar(plain_text) < ev_len) return(NULL)
 
-  # Filter short segments
-  text_segments <- text_segments[nchar(trimws(text_segments)) > 10]
+  # Exact substring match first (case-insensitive)
+  hit_pos <- regexpr(tolower(clean_evidence), tolower(plain_text), fixed = TRUE)[[1]]
+  if (hit_pos > 0) {
+    return(substr(plain_text, hit_pos, hit_pos + ev_len - 1))
+  }
 
-  if (length(text_segments) == 0) return(NULL)
-
+  # Sliding window of the same length as the evidence fragment.
+  # Using cosine similarity on trigrams — more reliable than Jaro-Winkler
+  # for strings of 20-150 characters.
   best_match <- NULL
   best_score <- threshold
+  step       <- max(1L, ev_len %/% 20L)
+  pt_len     <- nchar(plain_text)
 
-  for (segment in text_segments) {
-    segment <- trimws(segment)
-    clean_segment <- clean_sentence_for_comparison(segment)
-
-    # Substring containment: if the evidence is literally inside the segment
-    # this is a perfect match — no fuzzy scoring needed.
-    hit_pos <- regexpr(tolower(clean_evidence), tolower(clean_segment), fixed = TRUE)[[1]]
-    if (hit_pos > 0) {
-      best_match <- substr(segment, hit_pos, hit_pos + nchar(clean_evidence) - 1)
-      best_score <- 1.0
-      break
-    }
-
-    # Check word overlap first for efficiency
-    evidence_words <- unlist(strsplit(tolower(clean_evidence), "\\s+"))
-    segment_words <- unlist(strsplit(tolower(clean_segment), "\\s+"))
-    word_overlap <- length(intersect(evidence_words, segment_words)) / max(length(evidence_words), 1)
-
-    if (word_overlap < 0.3) next
-
-    # Calculate similarity
-    similarity <- stringdist::stringsim(clean_evidence, clean_segment, method = "jw")
-
-    if (similarity > best_score) {
-      best_score <- similarity
-      best_match <- segment
-    }
-
-    # Also check substrings if segment is longer than evidence
-    if (nchar(clean_segment) > nchar(clean_evidence) * 1.2) {
-      # Sliding window — use smaller step for better alignment
-      window_size <- nchar(clean_evidence)
-      step <- max(5, window_size %/% 10)
-      for (start in seq(1, nchar(clean_segment) - window_size + 1, by = step)) {
-        substr_text <- substr(clean_segment, start, start + window_size - 1)
-        sub_similarity <- stringdist::stringsim(clean_evidence, substr_text, method = "jw")
-        if (sub_similarity > best_score) {
-          original_substr <- substr(segment, start, start + window_size - 1)
-          best_score <- sub_similarity
-          best_match <- original_substr
-        }
-      }
+  for (start in seq(1L, pt_len - ev_len + 1L, by = step)) {
+    window       <- substr(plain_text, start, start + ev_len - 1L)
+    clean_window <- clean_sentence_for_comparison(window)
+    score        <- stringdist::stringsim(clean_evidence, clean_window,
+                                          method = "cosine", q = 3L)
+    if (score > best_score) {
+      best_score <- score
+      best_match <- window
+      if (best_score > 0.95) break
     }
   }
 
@@ -164,12 +153,15 @@ clean_sentence_for_comparison <- function(sentence) {
 #' @return List of lists, each with `text`, `bg_color`, `border_color`
 #' @export
 get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
+  # Strip HTML once — this is the same plain text mark.js searches in the DOM
+  plain_text <- html_to_plain_text(html)
+
   matches <- list()
   for (i in seq_along(evidence)) {
     ev <- evidence[[i]]
     if (is.null(ev) || is.na(ev) || nchar(ev) < 10) next
     clean_ev <- clean_sentence_for_comparison(ev)
-    matched_text <- find_best_match_in_html(html, clean_ev, similarity_threshold)
+    matched_text <- find_best_match_in_html(plain_text, clean_ev, similarity_threshold)
     if (!is.null(matched_text)) {
       idx <- (length(matches) %% length(HIGHLIGHT_COLORS)) + 1
       matches[[length(matches) + 1]] <- list(
