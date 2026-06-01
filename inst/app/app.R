@@ -79,8 +79,8 @@ ui <- shiny::fluidPage(
 
   # Head section with styles and scripts
   shiny::tags$head(
-    shiny::tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"),
-    shiny::tags$script(src = "https://unpkg.com/split.js@1.6.5/dist/split.min.js"),
+    fontawesome::fa_html_dependency(),
+    shiny::tags$script(src = "split.min.js"),
     shiny::tags$style(shiny::HTML("
       table{border-collapse:collapse;width:100%;margin:1em 0}
       th,td{border:1px solid #ddd;padding:8px;text-align:left}
@@ -179,7 +179,7 @@ ui <- shiny::fluidPage(
       .tensorlake-table th, .tensorlake-table td { border: 1px solid #ccc; padding: 6px 10px; }
       .tensorlake-table th { background: #f2f2f2; }
     ")),
-    shiny::tags$script(src = "https://cdn.jsdelivr.net/npm/mark.js@8.11.1/dist/mark.min.js"),
+    shiny::tags$script(src = "mark.min.js"),
     shiny::tags$script(shiny::HTML("
 Shiny.addCustomMessageHandler('applyOCRHighlights', function(data) {
   var el = document.getElementById('ocrViewer');
