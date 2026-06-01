@@ -80,7 +80,7 @@ ui <- shiny::fluidPage(
   # Head section with styles and scripts
   shiny::tags$head(
     shiny::tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"),
-    shiny::tags$script(src = "https://unpkg.com/split.js/dist/split.min.js"),
+    shiny::tags$script(src = "https://unpkg.com/split.js@1.6.5/dist/split.min.js"),
     shiny::tags$style(shiny::HTML("
       table{border-collapse:collapse;width:100%;margin:1em 0}
       th,td{border:1px solid #ddd;padding:8px;text-align:left}
