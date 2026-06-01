@@ -180,7 +180,6 @@ ui <- shiny::fluidPage(
       .tensorlake-table th { background: #f2f2f2; }
     ")),
     shiny::tags$script(shiny::HTML("window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true,processEnvironments:true},options:{skipHtmlTags:['script','noscript','style','textarea','pre']}};")),
-    shiny::tags$script(src = "https://polyfill.io/v3/polyfill.min.js?features=es6"),
     shiny::tags$script(id = "MathJax-script", async = TRUE, src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"),
     shiny::tags$script(src = "https://cdn.jsdelivr.net/npm/mark.js@8.11.1/dist/mark.min.js"),
     shiny::tags$script(shiny::HTML("
