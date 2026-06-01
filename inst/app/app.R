@@ -954,11 +954,13 @@ server <- function(input, output, session) {
       records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
       values$extracted_df <- records
       values$original_df <- records
-      table_trigger(table_trigger() + 1)
     }, error = function(e) {
       shiny::showNotification(paste("Error loading records:", e$message), type = "error")
     })
 
+    # Always re-render the table when switching documents, even if records
+    # loading failed (table will show nothing via req() inside renderDataTable)
+    table_trigger(table_trigger() + 1)
     values$edit_trigger <- values$edit_trigger + 1
   })
 
@@ -1237,25 +1239,32 @@ server <- function(input, output, session) {
   })
 
   # When a new document's OCR HTML is ready, inject evidence spans for all rows
-  # and send the row->span-id map to JS once (row switching is then a CSS toggle)
+  # and send the row->span-id map to JS once (row switching is then a CSS toggle).
+  # We render the base HTML immediately so the client doesn't wait for span
+  # injection, then defer the (potentially slow) indexing to after the flush.
   shiny::observeEvent(ocr_base_html(), {
     base_html <- ocr_base_html()
     df        <- shiny::isolate(values$extracted_df)
+    doc_id    <- shiny::isolate(values$document_id)
 
-    # Always display something immediately
+    # Render base HTML immediately — client sees OCR content without waiting
     ocr_display_html(base_html)
+    session$sendCustomMessage("setEvidenceIndex", list(row_map = list()))
 
-    if (is.null(df) || nrow(df) == 0) {
-      session$sendCustomMessage("setEvidenceIndex", list(row_map = list()))
-      return()
-    }
+    if (is.null(df) || nrow(df) == 0) return()
 
-    result <- tryCatch(
-      ecoreview::build_evidence_index(base_html, df),
-      error = function(e) list(html = base_html, row_map = list())
-    )
-    ocr_display_html(result$html)
-    session$sendCustomMessage("setEvidenceIndex", list(row_map = result$row_map))
+    # Defer span injection until AFTER the current flush sends base HTML to
+    # the client, so OCR and the table appear without delay.
+    session$onFlushed(function() {
+      # Skip if the user switched to a different document before we ran
+      if (!identical(shiny::isolate(values$document_id), doc_id)) return()
+      result <- tryCatch(
+        ecoreview::build_evidence_index(base_html, df),
+        error = function(e) list(html = base_html, row_map = list())
+      )
+      ocr_display_html(result$html)
+      session$sendCustomMessage("setEvidenceIndex", list(row_map = result$row_map))
+    }, once = TRUE)
   }, ignoreNULL = TRUE)
 
   # Database export handler - exports all records joined with document metadata to CSV

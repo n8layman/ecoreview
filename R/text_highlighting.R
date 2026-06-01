@@ -94,9 +94,12 @@ html_to_plain_text <- function(html_text) {
 #' @param plain_text Plain text of the document (pre-stripped HTML)
 #' @param clean_evidence Cleaned evidence fragment
 #' @param threshold Similarity threshold
+#' @param exact_only If TRUE, only attempt exact substring matching (no sliding
+#'   window). Much faster; suitable for verbatim evidence sentences.
 #' @return Matched text span from plain_text, or NULL
 #' @keywords internal
-find_best_match_in_html <- function(plain_text, clean_evidence, threshold) {
+find_best_match_in_html <- function(plain_text, clean_evidence, threshold,
+                                    exact_only = FALSE) {
   ev_len <- nchar(clean_evidence)
   if (ev_len < 10 || nchar(plain_text) < ev_len) return(NULL)
 
@@ -105,6 +108,8 @@ find_best_match_in_html <- function(plain_text, clean_evidence, threshold) {
   if (hit_pos > 0) {
     return(substr(plain_text, hit_pos, hit_pos + ev_len - 1))
   }
+
+  if (exact_only) return(NULL)
 
   # Sliding window of the same length as the evidence fragment.
   # Using cosine similarity on trigrams — more reliable than Jaro-Winkler
@@ -224,7 +229,8 @@ build_evidence_index <- function(html, extracted_df,
 
       clean_sent <- clean_sentence_for_comparison(sent)
       matched    <- find_best_match_in_html(plain_text, clean_sent,
-                                            similarity_threshold)
+                                            similarity_threshold,
+                                            exact_only = TRUE)
       if (is.null(matched)) next
 
       # Reuse ev_id if this exact text was already injected
