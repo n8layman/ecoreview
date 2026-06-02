@@ -1,5 +1,29 @@
 # ecoreview news
 
+## 0.1.8 (2026-06-02)
+
+### Improvements
+
+- Evidence matching simplified to a single punctuation-normalised, case-insensitive
+  regex pass. Replaces the previous three-tier approach (exact → word-regex →
+  sliding-window cosine). All non-alphanumeric runs in the evidence are treated as
+  equivalent to any non-alphanumeric separator in the OCR text, so "Table 1."
+  matches "TABLE 1:" without any fuzzy scoring and therefore no false positives.
+- Markdown tables from Mistral OCR now render as proper HTML tables. `commonmark`
+  is called with `extensions = TRUE` to enable GFM pipe-table support.
+- LaTeX-style superscripts used by Mistral OCR (`^{a}`, `^{b}`, …) are converted
+  to `<sup>` tags before rendering.
+
+### Bug fixes
+
+- Evidence span highlighting was completely broken: `row_map` was sending bare
+  integers `[0, 1, 2]` to the JS handler which expected `[{id, tier}]` objects,
+  so every `querySelectorAll('[data-ev-id="undefined"]')` found nothing.
+- Tooltip no longer shows a ✓ checkmark for matched sentences; the warning ⚠️
+  is kept only for sentences not found in the OCR text.
+
+---
+
 ## 0.1.7 (2026-06-01)
 
 ### Bug fixes
