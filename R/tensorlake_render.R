@@ -88,7 +88,7 @@ render_tensorlake_html <- function(doc_content) {
   pages_html <- sapply(doc_content, function(page) {
     page_md <- build_page_markdown(page)
     md_html <- tryCatch({
-      commonmark::markdown_html(page_md)
+      commonmark::markdown_html(page_md, extensions = TRUE)
     }, error = function(e) {
       paste0("<p>", htmltools::htmlEscape(page_md), "</p>")
     })
