@@ -103,7 +103,7 @@ find_best_match_in_html <- function(plain_text, clean_evidence, threshold,
   ev_len <- nchar(clean_evidence)
   if (ev_len < 10 || nchar(plain_text) < ev_len) return(NULL)
 
-  # Exact substring match first (case-insensitive)
+  # Tier 1: Exact substring match (case-insensitive)
   hit_pos <- regexpr(tolower(clean_evidence), tolower(plain_text), fixed = TRUE)[[1]]
   if (hit_pos > 0) {
     return(substr(plain_text, hit_pos, hit_pos + ev_len - 1))
@@ -111,7 +111,22 @@ find_best_match_in_html <- function(plain_text, clean_evidence, threshold,
 
   if (exact_only) return(NULL)
 
-  # Sliding window of the same length as the evidence fragment.
+  # Tier 2: Punctuation-tolerant word match.
+  # Extracts all alphanumeric tokens from the evidence and builds a regex that
+  # allows any non-word characters between them (handles "Table 1:" vs "TABLE 1."
+  # and similar OCR / LLM punctuation divergence).
+  words <- regmatches(clean_evidence,
+                      gregexpr("[A-Za-z0-9]+", clean_evidence))[[1]]
+  if (length(words) >= 3L) {
+    pattern <- paste(words, collapse = "\\W+")
+    m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
+    if (m[[1L]] > 0L) {
+      end_pos <- min(m[[1L]] + ev_len - 1L, nchar(plain_text))
+      return(substr(plain_text, m[[1L]], end_pos))
+    }
+  }
+
+  # Tier 3: Sliding window cosine similarity (tight threshold).
   # Using cosine similarity on trigrams — more reliable than Jaro-Winkler
   # for strings of 20-150 characters.
   best_match <- NULL
@@ -190,12 +205,17 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
 #'
 #' @param html Rendered HTML string (from render_tensorlake_html)
 #' @param extracted_df Data frame containing all_supporting_source_sentences
-#' @param similarity_threshold Minimum cosine-trigram similarity (default 0.7)
-#' @return Named list: \code{html} (modified HTML) and \code{row_map}
-#'   (list keyed by 0-based row index, each element a list of ev_ids)
+#' @param similarity_threshold Minimum cosine-trigram similarity for tier-3
+#'   fuzzy matching (default 0.85). Tier 1 (exact) and tier 2
+#'   (punctuation-tolerant word match) run first and are not affected by this
+#'   threshold.
+#' @return Named list: \code{html} (modified HTML), \code{row_map} (list keyed
+#'   by 0-based row index, each element a list of ev_ids), and
+#'   \code{unmatched_by_row} (list keyed by 0-based row index, each element a
+#'   character vector of sentences that could not be located in the document).
 #' @export
 build_evidence_index <- function(html, extracted_df,
-                                 similarity_threshold = 0.7) {
+                                 similarity_threshold = 0.85) {
   if (!"all_supporting_source_sentences" %in% names(extracted_df)) {
     return(list(html = html, row_map = list()))
   }
@@ -229,8 +249,7 @@ build_evidence_index <- function(html, extracted_df,
 
       clean_sent <- clean_sentence_for_comparison(sent)
       matched    <- find_best_match_in_html(plain_text, clean_sent,
-                                            similarity_threshold,
-                                            exact_only = TRUE)
+                                            similarity_threshold)
       if (is.null(matched)) next
 
       # Reuse ev_id if this exact text was already injected
@@ -249,7 +268,7 @@ build_evidence_index <- function(html, extracted_df,
     }
   }
 
-  # Build row_map: "0"-based string key -> list of ev_ids (preserving order)
+  # Build row_map and unmatched_by_row (both use "0"-based string keys)
   row_map <- stats::setNames(
     lapply(seq_len(nrow(extracted_df)), function(i) {
       sents  <- sentences_by_row[[i]]
@@ -259,7 +278,16 @@ build_evidence_index <- function(html, extracted_df,
     as.character(seq_len(nrow(extracted_df)) - 1L)
   )
 
-  list(html = modified_html, row_map = row_map)
+  unmatched_by_row <- stats::setNames(
+    lapply(seq_len(nrow(extracted_df)), function(i) {
+      sents <- sentences_by_row[[i]]
+      as.list(sents[!sents %in% names(sentence_to_id)])
+    }),
+    as.character(seq_len(nrow(extracted_df)) - 1L)
+  )
+
+  list(html = modified_html, row_map = row_map,
+       unmatched_by_row = unmatched_by_row)
 }
 
 #' Extract sentences from HTML or markdown text

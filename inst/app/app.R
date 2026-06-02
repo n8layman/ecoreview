@@ -184,10 +184,13 @@ ui <- shiny::fluidPage(
     shiny::tags$script(shiny::HTML("
 // ---- Evidence index (set once per document) ----
 var ecrRowMap = {};
+var ecrUnmatchedByRow = {};
 var ecrCurrentSentences = [];
+var ecrCurrentUnmatched = [];
 
 Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
-  ecrRowMap = data.row_map || {};
+  ecrRowMap         = data.row_map          || {};
+  ecrUnmatchedByRow = data.unmatched_by_row || {};
   // Clear any leftover highlights from the previous document
   document.querySelectorAll('.ecr-ev').forEach(function(el) {
     el.classList.remove('ecr-ev-active');
@@ -196,6 +199,7 @@ Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
     el.style.boxShadow = '';
   });
   ecrCurrentSentences = [];
+  ecrCurrentUnmatched = [];
 });
 
 // ---- Highlight a row's evidence spans ----
@@ -212,6 +216,9 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
   });
 
   ecrCurrentSentences = data.sentences || [];
+  ecrCurrentUnmatched = (data.row_index !== null && data.row_index !== undefined)
+    ? (ecrUnmatchedByRow[String(data.row_index)] || [])
+    : [];
 
   if (data.row_index === null || data.row_index === undefined) return;
 
@@ -246,9 +253,17 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     var el = e.target.closest('.ecr-ev-active');
     if (!el || ecrCurrentSentences.length === 0) return;
     var t = getTooltip();
+    // Build a set of unmatched sentences for O(1) lookup
+    var unmatchedSet = {};
+    ecrCurrentUnmatched.forEach(function(s) { unmatchedSet[String(s)] = true; });
     var html = '<div class=\"tt-label\">Supporting sentences</div><ol>';
     ecrCurrentSentences.forEach(function(s) {
-      html += '<li>' + String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
+      var escaped = String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      if (unmatchedSet[String(s)]) {
+        html += '<li style=\"color:#aaa;font-style:italic\"><span style=\"color:#e09800\" title=\"Not found in OCR text\">\u26a0\ufe0f</span> ' + escaped + '</li>';
+      } else {
+        html += '<li>' + escaped + '</li>';
+      }
     });
     html += '</ol>';
     t.innerHTML = html;
@@ -1249,7 +1264,8 @@ server <- function(input, output, session) {
 
     # Render base HTML immediately — client sees OCR content without waiting
     ocr_display_html(base_html)
-    session$sendCustomMessage("setEvidenceIndex", list(row_map = list()))
+    session$sendCustomMessage("setEvidenceIndex",
+                              list(row_map = list(), unmatched_by_row = list()))
 
     if (is.null(df) || nrow(df) == 0) return()
 
@@ -1260,10 +1276,13 @@ server <- function(input, output, session) {
       if (!identical(shiny::isolate(values$document_id), doc_id)) return()
       result <- tryCatch(
         ecoreview::build_evidence_index(base_html, df),
-        error = function(e) list(html = base_html, row_map = list())
+        error = function(e) list(html = base_html, row_map = list(),
+                                 unmatched_by_row = list())
       )
       ocr_display_html(result$html)
-      session$sendCustomMessage("setEvidenceIndex", list(row_map = result$row_map))
+      session$sendCustomMessage("setEvidenceIndex",
+                                list(row_map          = result$row_map,
+                                     unmatched_by_row = result$unmatched_by_row))
     }, once = TRUE)
   }, ignoreNULL = TRUE)
 
