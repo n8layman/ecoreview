@@ -23,9 +23,19 @@ render_tensorlake_html <- function(doc_content) {
 
   # Helper: convert page elements to Markdown
   build_page_markdown <- function(page) {
-    # Mistral OCR format: {"index": N, "markdown": "..."}
+    # Mistral OCR format: {"index": N, "markdown": "...", "tables": [...]}
     if (!is.null(page$markdown)) {
-      return(page$markdown)
+      md <- page$markdown
+      # Replace [tbl-N.md](tbl-N.md) placeholder links with actual table content
+      if (!is.null(page$tables) && length(page$tables) > 0) {
+        for (tbl in page$tables) {
+          if (!is.null(tbl$id) && !is.null(tbl$content)) {
+            md <- gsub(paste0("[", tbl$id, "](", tbl$id, ")"),
+                       tbl$content, md, fixed = TRUE)
+          }
+        }
+      }
+      return(md)
     }
 
     # Tensorlake format: page_header / section_header / text fields
