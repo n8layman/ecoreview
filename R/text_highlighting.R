@@ -233,12 +233,12 @@ build_evidence_index <- function(html, extracted_df) {
     }
   }
 
-  # row_map: 0-based string keys -> list of ev_ids
+  # row_map: 0-based string keys -> list of {id, tier} objects (JS expects this shape)
   row_map <- stats::setNames(
     lapply(seq_len(nrow(extracted_df)), function(i) {
       ids <- unique(unlist(lapply(sentences_by_row[[i]],
                                   function(s) sentence_to_id[[s]])))
-      as.list(ids)
+      lapply(ids, function(id) list(id = id, tier = 1L))
     }),
     as.character(seq_len(nrow(extracted_df)) - 1L)
   )
