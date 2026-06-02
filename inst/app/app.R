@@ -185,18 +185,21 @@ ui <- shiny::fluidPage(
 // ---- Evidence index (set once per document) ----
 var ecrRowMap = {};
 var ecrUnmatchedByRow = {};
+var ecrSentenceTierMap = {};
 var ecrCurrentSentences = [];
 var ecrCurrentUnmatched = [];
 
 Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
-  ecrRowMap         = data.row_map          || {};
-  ecrUnmatchedByRow = data.unmatched_by_row || {};
+  ecrRowMap         = data.row_map           || {};
+  ecrUnmatchedByRow = data.unmatched_by_row  || {};
+  ecrSentenceTierMap= data.sentence_tier_map || {};
   // Clear any leftover highlights from the previous document
   document.querySelectorAll('.ecr-ev').forEach(function(el) {
     el.classList.remove('ecr-ev-active');
     el.style.backgroundColor = '';
     el.style.border = '';
     el.style.boxShadow = '';
+    el.style.opacity = '';
   });
   ecrCurrentSentences = [];
   ecrCurrentUnmatched = [];
@@ -222,14 +225,22 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
 
   if (data.row_index === null || data.row_index === undefined) return;
 
-  var ids = ecrRowMap[String(data.row_index)] || [];
-  ids.forEach(function(id, colorIdx) {
-    var ci = colorIdx % ECR_BG.length;
+  // row_map entries are now {id, tier} objects
+  var entries = ecrRowMap[String(data.row_index)] || [];
+  entries.forEach(function(entry, colorIdx) {
+    var id   = entry.id;
+    var tier = entry.tier || 1;
+    var ci   = colorIdx % ECR_BG.length;
+    // Tier 1 = full opacity (exact), Tier 2 = 0.80 (normalised), Tier 3 = 0.65 (fuzzy)
+    var opacity = tier === 1 ? '1' : tier === 2 ? '0.80' : '0.65';
+    // Tier 2 uses dashed border, tier 3 dotted
+    var borderStyle = tier === 1 ? 'solid' : tier === 2 ? 'dashed' : 'dotted';
     document.querySelectorAll('[data-ev-id=\"' + id + '\"]').forEach(function(el) {
       el.classList.add('ecr-ev-active');
       el.style.backgroundColor = ECR_BG[ci];
-      el.style.border = '2px solid ' + ECR_BORDER[ci];
+      el.style.border = '2px ' + borderStyle + ' ' + ECR_BORDER[ci];
       el.style.boxShadow = '0 0 8px ' + ECR_BORDER[ci] + '40';
+      el.style.opacity = opacity;
     });
   });
 
@@ -260,7 +271,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     ecrCurrentSentences.forEach(function(s) {
       var escaped = String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
       if (unmatchedSet[String(s)]) {
-        html += '<li style=\"color:#aaa;font-style:italic\"><span style=\"color:#e09800\" title=\"Not found in OCR text\">\u26a0\ufe0f</span> ' + escaped + '</li>';
+        html += '<li style=\"color:#aaa;font-style:italic\"><span style=\"color:#e09800\" title=\"Not found in OCR text\">\u26a0\ufe0f</span>\u00a0' + escaped + '</li>';
       } else {
         html += '<li>' + escaped + '</li>';
       }
@@ -1277,12 +1288,14 @@ server <- function(input, output, session) {
       result <- tryCatch(
         ecoreview::build_evidence_index(base_html, df),
         error = function(e) list(html = base_html, row_map = list(),
-                                 unmatched_by_row = list())
+                                 unmatched_by_row = list(),
+                                 sentence_tier_map = list())
       )
       ocr_display_html(result$html)
       session$sendCustomMessage("setEvidenceIndex",
-                                list(row_map          = result$row_map,
-                                     unmatched_by_row = result$unmatched_by_row))
+                                list(row_map           = result$row_map,
+                                     unmatched_by_row  = result$unmatched_by_row,
+                                     sentence_tier_map = result$sentence_tier_map))
     }, once = TRUE)
   }, ignoreNULL = TRUE)
 
