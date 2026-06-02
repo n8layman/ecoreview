@@ -46,7 +46,7 @@ highlight_similar_text <- function(text, all_source_sentences, similarity_thresh
 
     # Try exact match first (after cleaning)
     # Extract text content between HTML tags and try to match
-    match_result <- find_best_match_in_html(working_text, clean_evidence, similarity_threshold)
+    match_result <- find_best_match_in_html(working_text, clean_evidence)
 
     if (!is.null(match_result)) {
       # Get color for this evidence sentence
@@ -58,10 +58,10 @@ highlight_similar_text <- function(text, all_source_sentences, similarity_thresh
         '<mark class="text-highlight" style="background-color: ', bg_color,
         ' !important; border: 2px solid ', border_color, ' !important; box-shadow: 0 0 8px ',
         border_color, '40;">',
-        match_result, '</mark>'
+        match_result$text, '</mark>'
       )
       # Only replace first occurrence to avoid double-highlighting
-      working_text <- sub(fixed = TRUE, match_result, highlighted, working_text)
+      working_text <- sub(fixed = TRUE, match_result$text, highlighted, working_text)
       color_index <- color_index + 1
     }
   }
@@ -85,68 +85,37 @@ html_to_plain_text <- function(html_text) {
   stringr::str_squish(plain)
 }
 
-#' Find best matching span in plain text for an evidence fragment
+#' Find a matching span in plain text for an evidence fragment
 #'
-#' The evidence fragment IS the unit to locate. We search the plain text
-#' (what mark.js sees in the DOM) using a sliding window of the same length
-#' as the fragment so mark.js can find it directly.
+#' Lowercases both sides and drops all punctuation by replacing every run of
+#' non-alphanumeric characters in the evidence with the pattern
+#' \code{[^A-Za-z0-9]+}, then searches the document text case-insensitively.
+#' This handles verbatim OCR matches and punctuation/case variants
+#' (e.g. "Table 1: Prevalence" vs "TABLE 1. Prevalence") in one pass with no
+#' fuzzy scoring.
 #'
 #' @param plain_text Plain text of the document (pre-stripped HTML)
 #' @param clean_evidence Cleaned evidence fragment
-#' @param threshold Similarity threshold
-#' @param exact_only If TRUE, only attempt exact substring matching (no sliding
-#'   window). Much faster; suitable for verbatim evidence sentences.
-#' @return Matched text span from plain_text, or NULL
+#' @return Named list with \code{text} (matched span from plain_text) and
+#'   \code{tier} (always 1L), or \code{NULL} if no match found.
 #' @keywords internal
-find_best_match_in_html <- function(plain_text, clean_evidence, threshold,
-                                    exact_only = FALSE) {
-  ev_len <- nchar(clean_evidence)
-  if (ev_len < 10 || nchar(plain_text) < ev_len) return(NULL)
+find_best_match_in_html <- function(plain_text, clean_evidence) {
+  if (nchar(clean_evidence) < 10 || nchar(plain_text) < 10) return(NULL)
 
-  # Tier 1: Exact substring match (case-insensitive)
-  hit_pos <- regexpr(tolower(clean_evidence), tolower(plain_text), fixed = TRUE)[[1]]
-  if (hit_pos > 0) {
-    return(substr(plain_text, hit_pos, hit_pos + ev_len - 1))
-  }
+  # Build a pattern by lowercasing the evidence and replacing every run of
+  # non-alphanumeric chars with [^A-Za-z0-9]+.  This is equivalent to
+  # "drop punctuation, lowercase, exact match" without needing to back-map
+  # positions from a stripped string to the original.
+  pattern <- gsub("[^A-Za-z0-9]+", "[^A-Za-z0-9]+",
+                  gsub("^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "",
+                       tolower(clean_evidence)))
+  if (nchar(pattern) == 0L) return(NULL)
 
-  if (exact_only) return(NULL)
+  m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
+  if (m[[1L]] <= 0L) return(NULL)
 
-  # Tier 2: Punctuation-tolerant word match.
-  # Extracts all alphanumeric tokens from the evidence and builds a regex that
-  # allows any non-word characters between them (handles "Table 1:" vs "TABLE 1."
-  # and similar OCR / LLM punctuation divergence).
-  words <- regmatches(clean_evidence,
-                      gregexpr("[A-Za-z0-9]+", clean_evidence))[[1]]
-  if (length(words) >= 3L) {
-    pattern <- paste(words, collapse = "\\W+")
-    m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
-    if (m[[1L]] > 0L) {
-      end_pos <- min(m[[1L]] + ev_len - 1L, nchar(plain_text))
-      return(substr(plain_text, m[[1L]], end_pos))
-    }
-  }
-
-  # Tier 3: Sliding window cosine similarity (tight threshold).
-  # Using cosine similarity on trigrams — more reliable than Jaro-Winkler
-  # for strings of 20-150 characters.
-  best_match <- NULL
-  best_score <- threshold
-  step       <- max(1L, ev_len %/% 20L)
-  pt_len     <- nchar(plain_text)
-
-  for (start in seq(1L, pt_len - ev_len + 1L, by = step)) {
-    window       <- substr(plain_text, start, start + ev_len - 1L)
-    clean_window <- clean_sentence_for_comparison(window)
-    score        <- stringdist::stringsim(clean_evidence, clean_window,
-                                          method = "cosine", q = 3L)
-    if (score > best_score) {
-      best_score <- score
-      best_match <- window
-      if (best_score > 0.95) break
-    }
-  }
-
-  return(best_match)
+  end_pos <- min(m[[1L]] + attr(m, "match.length") - 1L, nchar(plain_text))
+  list(text = substr(plain_text, m[[1L]], end_pos), tier = 1L)
 }
 
 #' Clean sentence for comparison by removing markdown and normalizing whitespace
@@ -181,11 +150,12 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
     ev <- evidence[[i]]
     if (is.null(ev) || is.na(ev) || nchar(ev) < 10) next
     clean_ev <- clean_sentence_for_comparison(ev)
-    matched_text <- find_best_match_in_html(plain_text, clean_ev, similarity_threshold)
-    if (!is.null(matched_text)) {
+    match_result <- find_best_match_in_html(plain_text, clean_ev)
+    if (!is.null(match_result)) {
       idx <- (length(matches) %% length(HIGHLIGHT_COLORS)) + 1
       matches[[length(matches) + 1]] <- list(
-        text         = matched_text,
+        text         = match_result$text,
+        tier         = match_result$tier,
         bg_color     = HIGHLIGHT_COLORS[[idx]],
         border_color = HIGHLIGHT_BORDERS[[idx]]
       )
@@ -205,19 +175,14 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
 #'
 #' @param html Rendered HTML string (from render_tensorlake_html)
 #' @param extracted_df Data frame containing all_supporting_source_sentences
-#' @param similarity_threshold Minimum cosine-trigram similarity for tier-3
-#'   fuzzy matching (default 0.85). Tier 1 (exact) and tier 2
-#'   (punctuation-tolerant word match) run first and are not affected by this
-#'   threshold.
 #' @return Named list: \code{html} (modified HTML), \code{row_map} (list keyed
 #'   by 0-based row index, each element a list of ev_ids), and
 #'   \code{unmatched_by_row} (list keyed by 0-based row index, each element a
 #'   character vector of sentences that could not be located in the document).
 #' @export
-build_evidence_index <- function(html, extracted_df,
-                                 similarity_threshold = 0.85) {
+build_evidence_index <- function(html, extracted_df) {
   if (!"all_supporting_source_sentences" %in% names(extracted_df)) {
-    return(list(html = html, row_map = list()))
+    return(list(html = html, row_map = list(), unmatched_by_row = list()))
   }
 
   plain_text    <- html_to_plain_text(html)
@@ -229,37 +194,37 @@ build_evidence_index <- function(html, extracted_df,
   matched_to_id  <- list()
   ev_id_counter  <- 0L
 
-  # Parse sentences per row (keep NULLs for rows with no data)
+  # Parse sentences per row
   sentences_by_row <- lapply(seq_len(nrow(extracted_df)), function(i) {
     raw <- extracted_df$all_supporting_source_sentences[[i]]
     if (is.null(raw) || is.na(raw) || nchar(trimws(raw)) == 0) {
       return(character(0))
     }
     sents <- tryCatch(jsonlite::fromJSON(raw), error = function(e) as.character(raw))
-    sents <- sents[!is.na(sents) & nchar(trimws(sents)) >= 10]
-    sents
+    sents[!is.na(sents) & nchar(trimws(sents)) >= 10]
   })
 
-  # Process unique sentences in document order
+  # Locate each unique sentence once and inject a span
   seen <- character(0)
   for (row_sents in sentences_by_row) {
     for (sent in row_sents) {
       if (sent %in% seen) next
       seen <- c(seen, sent)
 
-      clean_sent <- clean_sentence_for_comparison(sent)
-      matched    <- find_best_match_in_html(plain_text, clean_sent,
-                                            similarity_threshold)
-      if (is.null(matched)) next
+      clean_sent   <- clean_sentence_for_comparison(sent)
+      match_result <- find_best_match_in_html(plain_text, clean_sent)
+      if (is.null(match_result)) next
 
-      # Reuse ev_id if this exact text was already injected
+      matched <- match_result$text
+
+      # Reuse ev_id if this exact span was already injected
       if (!is.null(matched_to_id[[matched]])) {
         sentence_to_id[[sent]] <- matched_to_id[[matched]]
       } else {
-        ev_id                   <- ev_id_counter
-        ev_id_counter           <- ev_id_counter + 1L
+        ev_id                  <- ev_id_counter
+        ev_id_counter          <- ev_id_counter + 1L
         matched_to_id[[matched]] <- ev_id
-        sentence_to_id[[sent]]  <- ev_id
+        sentence_to_id[[sent]] <- ev_id
 
         span          <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
                                 '">', matched, "</span>")
@@ -268,16 +233,17 @@ build_evidence_index <- function(html, extracted_df,
     }
   }
 
-  # Build row_map and unmatched_by_row (both use "0"-based string keys)
+  # row_map: 0-based string keys -> list of ev_ids
   row_map <- stats::setNames(
     lapply(seq_len(nrow(extracted_df)), function(i) {
-      sents  <- sentences_by_row[[i]]
-      ids    <- unique(unlist(lapply(sents, function(s) sentence_to_id[[s]])))
+      ids <- unique(unlist(lapply(sentences_by_row[[i]],
+                                  function(s) sentence_to_id[[s]])))
       as.list(ids)
     }),
     as.character(seq_len(nrow(extracted_df)) - 1L)
   )
 
+  # unmatched_by_row: sentences that could not be located in the document
   unmatched_by_row <- stats::setNames(
     lapply(seq_len(nrow(extracted_df)), function(i) {
       sents <- sentences_by_row[[i]]
