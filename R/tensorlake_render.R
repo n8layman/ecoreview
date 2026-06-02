@@ -87,6 +87,8 @@ render_tensorlake_html <- function(doc_content) {
   # Build HTML per page
   pages_html <- sapply(doc_content, function(page) {
     page_md <- build_page_markdown(page)
+    # Convert LaTeX-style superscripts used by Mistral OCR (e.g. ^{a}) to HTML
+    page_md <- gsub("\\^\\{([^}]*)\\}", "<sup>\\1</sup>", page_md)
     md_html <- tryCatch({
       commonmark::markdown_html(page_md, extensions = TRUE)
     }, error = function(e) {
