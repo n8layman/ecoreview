@@ -112,7 +112,7 @@ ui <- shiny::fluidPage(
       .ecr-ev {
         border-radius: 3px;
         padding: 1px 2px;
-        cursor: help;
+        cursor: pointer;
         transition: background-color 0.15s, border 0.15s;
       }
 
@@ -145,6 +145,73 @@ ui <- shiny::fluidPage(
       }
       #ocr-hl-tooltip li {
         margin-bottom: 4px;
+      }
+      #ocr-hl-tooltip.two-col {
+        max-width: 720px;
+      }
+      #ocr-hl-tooltip.two-col ol {
+        column-count: 2;
+        column-gap: 20px;
+      }
+
+      /* Sentence detail modal */
+      #ecr-sent-modal {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.55);
+        z-index: 999999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #ecr-sent-modal-inner {
+        background: #fff;
+        border-radius: 8px;
+        max-width: 680px;
+        width: 90%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      }
+      #ecr-sent-modal-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      #ecr-sent-modal-header span {
+        font-weight: 600;
+        font-size: 14px;
+        color: #212529;
+      }
+      #ecr-sent-modal-close {
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 11px;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+      }
+      #ecr-sent-modal-close:hover { background: #c82333; }
+      #ecr-sent-modal-body {
+        padding: 16px 20px;
+        overflow-y: auto;
+        flex: 1;
+        font-size: 13px;
+        line-height: 1.8;
+        color: #212529;
+      }
+      #ecr-sent-modal-body ol {
+        margin: 0;
+        padding-left: 20px;
+      }
+      #ecr-sent-modal-body li {
+        margin-bottom: 10px;
       }
 
       /* Always show horizontal scrollbar — webkit height forces classic (non-overlay) mode on macOS */
@@ -249,25 +316,36 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
   if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
 });
 
-// ---- Tooltip on highlighted spans ----
+// ---- Tooltip on highlighted spans + sentence modal ----
 (function() {
   var tip = null;
-  function getTooltip() {
-    if (!tip) {
-      tip = document.createElement('div');
-      tip.id = 'ocr-hl-tooltip';
-      document.body.appendChild(tip);
-    }
-    return tip;
-  }
-  document.addEventListener('mouseover', function(e) {
-    var el = e.target.closest('.ecr-ev-active');
-    if (!el || ecrCurrentSentences.length === 0) return;
-    var t = getTooltip();
-    // Build a set of unmatched sentences for O(1) lookup
+
+  // Create the sentence detail modal once
+  var sentModal = document.createElement('div');
+  sentModal.id = 'ecr-sent-modal';
+  sentModal.innerHTML =
+    '<div id=\"ecr-sent-modal-inner\">' +
+      '<div id=\"ecr-sent-modal-header\">' +
+        '<span>Supporting Sentences</span>' +
+        '<button id=\"ecr-sent-modal-close\">&#x2715;</button>' +
+      '</div>' +
+      '<div id=\"ecr-sent-modal-body\"></div>' +
+    '</div>';
+  document.body.appendChild(sentModal);
+  document.getElementById('ecr-sent-modal-close').addEventListener('click', function() {
+    sentModal.style.display = 'none';
+  });
+  sentModal.addEventListener('click', function(e) {
+    if (e.target === sentModal) sentModal.style.display = 'none';
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && sentModal.style.display !== 'none') sentModal.style.display = 'none';
+  });
+
+  function buildSentenceList() {
     var unmatchedSet = {};
     ecrCurrentUnmatched.forEach(function(s) { unmatchedSet[String(s)] = true; });
-    var html = '<div class=\"tt-label\">Supporting sentences</div><ol>';
+    var html = '<ol>';
     ecrCurrentSentences.forEach(function(s) {
       var escaped = String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
       if (unmatchedSet[String(s)]) {
@@ -277,19 +355,49 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
       }
     });
     html += '</ol>';
-    t.innerHTML = html;
+    return html;
+  }
+
+  function getTooltip() {
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'ocr-hl-tooltip';
+      document.body.appendChild(tip);
+    }
+    return tip;
+  }
+
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('.ecr-ev-active');
+    if (!el || ecrCurrentSentences.length === 0) return;
+    var t = getTooltip();
+    t.className = ecrCurrentSentences.length >= 4 ? 'two-col' : '';
+    t.innerHTML = '<div class=\"tt-label\">Supporting sentences <span style=\"font-weight:400;opacity:0.6;font-style:italic;\">(click to expand)</span></div>' + buildSentenceList();
     t.style.display = 'block';
   });
+
   document.addEventListener('mousemove', function(e) {
     if (!tip || tip.style.display === 'none') return;
-    var x = e.clientX + 14, y = e.clientY + 14;
-    if (x + 440 > window.innerWidth)  x = e.clientX - 440;
-    if (y + tip.offsetHeight > window.innerHeight) y = e.clientY - tip.offsetHeight - 10;
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    var x = e.clientX + 14;
+    var y = e.clientY - Math.round(th / 2);
+    if (x + tw > window.innerWidth)  x = e.clientX - tw - 10;
+    if (y < 4) y = 4;
+    if (y + th > window.innerHeight - 4) y = window.innerHeight - th - 4;
     tip.style.left = x + 'px';
     tip.style.top  = y + 'px';
   });
+
   document.addEventListener('mouseout', function(e) {
     if (!e.target.closest('.ecr-ev-active') && tip) tip.style.display = 'none';
+  });
+
+  // Click a highlighted span to open the scrollable sentence modal
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('.ecr-ev-active');
+    if (!el || ecrCurrentSentences.length === 0) return;
+    document.getElementById('ecr-sent-modal-body').innerHTML = buildSentenceList();
+    sentModal.style.display = 'flex';
   });
 })();
     "))
