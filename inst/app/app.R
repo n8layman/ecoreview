@@ -319,27 +319,33 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
 // ---- Tooltip on highlighted spans + sentence modal ----
 (function() {
   var tip = null;
+  var sentModal = null;
 
-  // Create the sentence detail modal once
-  var sentModal = document.createElement('div');
-  sentModal.id = 'ecr-sent-modal';
-  sentModal.innerHTML =
-    '<div id=\"ecr-sent-modal-inner\">' +
-      '<div id=\"ecr-sent-modal-header\">' +
-        '<span>Supporting Sentences</span>' +
-        '<button id=\"ecr-sent-modal-close\">&#x2715;</button>' +
-      '</div>' +
-      '<div id=\"ecr-sent-modal-body\"></div>' +
-    '</div>';
-  document.body.appendChild(sentModal);
-  document.getElementById('ecr-sent-modal-close').addEventListener('click', function() {
-    sentModal.style.display = 'none';
-  });
-  sentModal.addEventListener('click', function(e) {
-    if (e.target === sentModal) sentModal.style.display = 'none';
-  });
+  // Lazily create the sentence detail modal on first use (body must exist)
+  function getSentModal() {
+    if (sentModal) return sentModal;
+    sentModal = document.createElement('div');
+    sentModal.id = 'ecr-sent-modal';
+    sentModal.innerHTML =
+      '<div id=\"ecr-sent-modal-inner\">' +
+        '<div id=\"ecr-sent-modal-header\">' +
+          '<span>Supporting Sentences</span>' +
+          '<button id=\"ecr-sent-modal-close\">&#x2715;</button>' +
+        '</div>' +
+        '<div id=\"ecr-sent-modal-body\"></div>' +
+      '</div>';
+    document.body.appendChild(sentModal);
+    document.getElementById('ecr-sent-modal-close').addEventListener('click', function() {
+      sentModal.style.display = 'none';
+    });
+    sentModal.addEventListener('click', function(e) {
+      if (e.target === sentModal) sentModal.style.display = 'none';
+    });
+    return sentModal;
+  }
+
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && sentModal.style.display !== 'none') sentModal.style.display = 'none';
+    if (e.key === 'Escape' && sentModal && sentModal.style.display !== 'none') sentModal.style.display = 'none';
   });
 
   function buildSentenceList() {
@@ -396,8 +402,9 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
   document.addEventListener('click', function(e) {
     var el = e.target.closest('.ecr-ev-active');
     if (!el || ecrCurrentSentences.length === 0) return;
+    var m = getSentModal();
     document.getElementById('ecr-sent-modal-body').innerHTML = buildSentenceList();
-    sentModal.style.display = 'flex';
+    m.style.display = 'flex';
   });
 })();
     "))
