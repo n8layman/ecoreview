@@ -97,13 +97,35 @@ render_tensorlake_html <- function(doc_content) {
 
     table_html <- convert_tables(page$tables)
 
+    # Page footer / other content (table footnotes, abbreviation keys) — rendered
+    # AFTER tables so footnotes appear below the table they annotate.
+    footer_html <- ""
+    if (!is.null(page$other) && length(page$other) > 0) {
+      footer_parts <- vapply(page$other, function(item) {
+        # Skip "title" — already rendered in page_header / text
+        if (identical(item$type, "title")) return("")
+        if (!is.null(item$content) && nchar(trimws(item$content)) > 0) item$content else ""
+      }, character(1))
+      footer_parts <- footer_parts[nchar(trimws(footer_parts)) > 0]
+      if (length(footer_parts) > 0) {
+        footer_md <- paste(footer_parts, collapse = "\n\n")
+        footer_md <- gsub("\\^\\{([^}]*)\\}", "<sup>\\1</sup>", footer_md)
+        footer_rendered <- tryCatch({
+          commonmark::markdown_html(footer_md, extensions = TRUE)
+        }, error = function(e) {
+          paste0("<p>", htmltools::htmlEscape(footer_md), "</p>")
+        })
+        footer_html <- paste0("<hr style='margin:8px 0;border-color:#dee2e6;'>", footer_rendered)
+      }
+    }
+
     page_num <- if (!is.null(page$page_number)) {
       paste0("<div class='page-number'>Page ", page$page_number, "</div>")
     } else if (!is.null(page$index)) {
       paste0("<div class='page-number'>Page ", page$index + 1L, "</div>")
     } else ""
 
-    paste0("<div class='ocr-page'>", page_num, md_html, table_html, "</div>")
+    paste0("<div class='ocr-page'>", page_num, md_html, table_html, footer_html, "</div>")
   })
 
   # Return combined HTML
