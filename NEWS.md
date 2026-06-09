@@ -1,8 +1,21 @@
 # ecoreview news
 
-## 0.1.17 (2026-06-09)
+## 0.1.18 (2026-06-09)
 
 ### Improvements
+
+- **Table row sentence tooltip shows match status** (issue #23): hovering over
+  a cell in the `all_supporting_source_sentences` column now renders an HTML
+  tooltip identical to the OCR pane tooltip — matched sentences are listed
+  normally and unmatched sentences are marked with ⚠️ in italic/muted style.
+  Uses the `ecrUnmatchedByRow` JS global (already set by `setEvidenceIndex`)
+  keyed by the DataTables data-row index. Other column tooltips are unchanged.
+
+---
+
+## 0.1.17 (2026-06-09)
+
+### New features
 
 - **Infinite scroll** (issue #21): replaced DataTables pagination with a single
   scrollable container. All rows for the current document are visible without
@@ -38,7 +51,7 @@
 
 ## 0.1.15 (2026-06-09)
 
-### New features
+### Improvements
 
 - **Verified document indicator**: document names in the dropdown are prefixed
   with ✓ when `reviewed_at` is set, making it easy to spot already-verified
