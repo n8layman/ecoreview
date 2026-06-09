@@ -1,5 +1,17 @@
 # ecoreview news
 
+## 0.1.20 (2026-06-09)
+
+### Improvements
+
+- **Per-column row filtering** (issue #15): enabled DataTables `filter = 'top'`
+  so each column header gets a search input (text box for free-text columns,
+  select dropdown for low-cardinality ones). Filtering is entirely client-side
+  (`server = FALSE`) and does not affect data indices, so row selection, OCR
+  highlighting, and sentence match lookups all remain correct.
+
+---
+
 ## 0.1.19 (2026-06-09)
 
 ### Improvements

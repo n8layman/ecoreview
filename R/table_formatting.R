@@ -19,6 +19,7 @@ create_styled_datatable <- function(data, height = "600px",
 
   DT::datatable(data,
     extensions = 'Select',
+    filter = 'top',
     options = list(
       paging = FALSE,
       scrollX = TRUE,
