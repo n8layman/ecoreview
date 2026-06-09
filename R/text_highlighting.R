@@ -75,7 +75,11 @@ highlight_similar_text <- function(text, all_source_sentences, similarity_thresh
 #' @return Plain text as it would appear in the rendered DOM
 #' @keywords internal
 html_to_plain_text <- function(html_text) {
-  plain <- stringr::str_remove_all(html_text, "<[^>]+>")
+  # Replace table-cell tags with spaces first so adjacent cells don't get
+  # their text concatenated when the tags are stripped
+  # (e.g. "value</td><td>next" becomes "value next" rather than "valuenext")
+  plain <- stringr::str_replace_all(html_text, "</?(td|th)[^>]*>", " ")
+  plain <- stringr::str_remove_all(plain, "<[^>]+>")
   plain <- stringr::str_replace_all(plain, "&nbsp;",  " ")
   plain <- stringr::str_replace_all(plain, "&amp;",   "&")
   plain <- stringr::str_replace_all(plain, "&lt;",    "<")
@@ -87,12 +91,12 @@ html_to_plain_text <- function(html_text) {
 
 #' Find a matching span in plain text for an evidence fragment
 #'
-#' Lowercases both sides and drops all punctuation by replacing every run of
-#' non-alphanumeric characters in the evidence with the pattern
-#' \code{[^A-Za-z0-9]+}, then searches the document text case-insensitively.
-#' This handles verbatim OCR matches and punctuation/case variants
-#' (e.g. "Table 1: Prevalence" vs "TABLE 1. Prevalence") in one pass with no
-#' fuzzy scoring.
+#' Splits the evidence into alphanumeric tokens (words/numbers) separated by
+#' non-alphanumeric runs.  Between tokens, \code{[^A-Za-z0-9]+} is used so
+#' punctuation differences ("Table 1: ..." vs "Table 1 ...") are ignored.
+#' Within each token, \code{[^A-Za-z0-9]*} is inserted between every pair of
+#' adjacent characters so OCR line-break hyphens ("amphis-tome") match the
+#' evidence word ("amphistome").  Search is case-insensitive.
 #'
 #' @param plain_text Plain text of the document (pre-stripped HTML)
 #' @param clean_evidence Cleaned evidence fragment
@@ -102,14 +106,24 @@ html_to_plain_text <- function(html_text) {
 find_best_match_in_html <- function(plain_text, clean_evidence) {
   if (nchar(clean_evidence) < 10 || nchar(plain_text) < 10) return(NULL)
 
-  # Build a pattern by lowercasing the evidence and replacing every run of
-  # non-alphanumeric chars with [^A-Za-z0-9]+.  This is equivalent to
-  # "drop punctuation, lowercase, exact match" without needing to back-map
-  # positions from a stripped string to the original.
-  pattern <- gsub("[^A-Za-z0-9]+", "[^A-Za-z0-9]+",
-                  gsub("^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "",
-                       tolower(clean_evidence)))
-  if (nchar(pattern) == 0L) return(NULL)
+  # Strip leading/trailing non-alphanumeric chars and lowercase
+  core <- gsub("^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", tolower(clean_evidence))
+  if (nchar(core) == 0L) return(NULL)
+
+  # Split into alphanumeric tokens
+  tokens <- unlist(strsplit(core, "[^A-Za-z0-9]+"))
+  tokens <- tokens[nchar(tokens) > 0L]
+  if (length(tokens) == 0L) return(NULL)
+
+  # Within each token allow optional non-alphanumeric chars between every pair
+  # of adjacent characters.  This lets "amphistome" match OCR "amphis-tome".
+  flex_tokens <- vapply(tokens, function(tok) {
+    chars <- strsplit(tok, "")[[1]]
+    paste(chars, collapse = "[^A-Za-z0-9]*")
+  }, character(1L))
+
+  # Between tokens require at least one non-alphanumeric separator
+  pattern <- paste(flex_tokens, collapse = "[^A-Za-z0-9]+")
 
   m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
   if (m[[1L]] <= 0L) return(NULL)
@@ -190,6 +204,10 @@ build_evidence_index <- function(html, extracted_df) {
   # multi-space gaps mid-sentence; normalising here makes the plain-text
   # match positions align with the HTML so a simple fixed-string sub works.
   modified_html <- gsub("\\s+", " ", html, perl = TRUE)
+  # Strip markdown emphasis tags (<strong>, <em>, <b>, <i>) so that bold OCR
+  # headings like "<strong>Table 1</strong> Detection..." don't prevent the
+  # fixed-string span injection from finding the matched plain text.
+  modified_html <- gsub("</?(?:strong|em|b|i)(?:\\s[^>]*)?>", "", modified_html, perl = TRUE)
   plain_text    <- html_to_plain_text(modified_html)
 
   # sentence text -> ev_id  (first unique matched text wins)
@@ -225,14 +243,21 @@ build_evidence_index <- function(html, extracted_df) {
       if (!is.null(matched_to_id[[matched]])) {
         sentence_to_id[[sent]] <- matched_to_id[[matched]]
       } else {
-        ev_id                  <- ev_id_counter
-        ev_id_counter          <- ev_id_counter + 1L
-        matched_to_id[[matched]] <- ev_id
-        sentence_to_id[[sent]] <- ev_id
+        ev_id <- ev_id_counter
 
-        span          <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
-                                '">', matched, "</span>")
-        modified_html <- sub(matched, span, modified_html, fixed = TRUE)
+        span     <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
+                           '">', matched, "</span>")
+        new_html <- sub(matched, span, modified_html, fixed = TRUE)
+
+        # If injection failed (matched text not verbatim in HTML — e.g. spans
+        # multiple <td> cells), skip without registering this ev_id so that no
+        # row_map entry points to a span that was never injected.
+        if (identical(new_html, modified_html)) next
+
+        ev_id_counter            <- ev_id_counter + 1L
+        matched_to_id[[matched]] <- ev_id
+        sentence_to_id[[sent]]   <- ev_id
+        modified_html            <- new_html
       }
     }
   }
