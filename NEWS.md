@@ -1,5 +1,54 @@
 # ecoreview news
 
+## 0.1.16 (2026-06-09)
+
+### Improvements
+
+- **OS-style multi-row selection** (issue #19): switched to the DataTables Select
+  extension with `style = 'os'`. Plain click selects a single row; Ctrl/Cmd+click
+  adds or removes rows from the selection; Shift+click selects a range. Multi-row
+  delete shows a confirmation modal before soft-deleting all selected rows.
+- **Cell edits preserve scroll & sort** (issue #20, #22): cell edits now push a
+  targeted `dtUpdateCell` JS message (`api.cell().data().draw(false)`) instead of
+  triggering a full table re-render. Scroll position, sort order, and page are
+  preserved after every edit.
+- **OCR pane no longer scrolls on double-click-to-edit**: a `last_scrolled_row`
+  variable tracks which row was last scrolled to. Re-clicking or double-clicking
+  the same row does not trigger another `scrollIntoView`.
+
+### Bug fixes
+
+- **`replaceData` replaced by client-side updates**: the table now renders with
+  `server = FALSE` (required by the Select extension). `DT::replaceData` calls
+  have been replaced with `table_trigger()` for row-count changes (delete/add)
+  and `dtUpdateCell` for in-place cell edits.
+
+---
+
+## 0.1.15 (2026-06-09)
+
+### New features
+
+- **Verified document indicator**: document names in the dropdown are prefixed
+  with ✓ when `reviewed_at` is set, making it easy to spot already-verified
+  files when the filter is off.
+- **Copyable filename**: a small selectable text line below the dropdown always
+  shows the current document's filename so it can be triple-clicked and copied
+  without opening the dropdown.
+
+### Bug fixes
+
+- **Uncheck "Show only unreviewed" now shows all docs**: the dropdown observer
+  was an `observe()` whose reactive dependency on `input$show_unreviewed_only`
+  was indirect (via `filtered_documents()`). In certain execution paths the
+  transitive link was not established, so unchecking had no effect. Replaced
+  with `observeEvent(list(all_documents(), input$show_unreviewed_only), ...)`
+  so the checkbox is an explicit trigger. The handler is auto-isolated, which
+  also eliminates the `values$document_id` feedback loop from document
+  navigation.
+
+---
+
 ## 0.1.14 (2026-06-09)
 
 ### Bug fixes

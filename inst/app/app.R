@@ -249,6 +249,12 @@ ui <- shiny::fluidPage(
       .tensorlake-table th { background: #f2f2f2; }
     ")),
     shiny::tags$script(shiny::HTML("
+// ---- DataTable targeted cell update (preserves scroll/sort) ----
+Shiny.addCustomMessageHandler('dtUpdateCell', function(msg) {
+  var api = $('#interactiveTable').DataTable();
+  api.cell(msg.row, msg.col).data(msg.value).draw(false);
+});
+
 // ---- Evidence index (set once per document) ----
 var ecrRowMap = {};
 var ecrUnmatchedByRow = {};
@@ -422,7 +428,11 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
       shiny::column(6,
         shiny::selectInput("document_select", "Select Document",
                     choices = NULL,
-                    width = "100%")
+                    width = "100%"),
+        shiny::div(
+          style = "margin-top: -6px; margin-bottom: 4px; font-size: 11px; color: #666; user-select: text; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+          shiny::textOutput("current_doc_filename_display", inline = TRUE)
+        )
       ),
       shiny::column(3,
         shiny::div(style = "padding-top: 25px;",
@@ -536,7 +546,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
                        label = shiny::HTML('<i class="fa fa-plus"></i> Add Row'),
                        class = "btn-outline-primary btn-sm"),
           shiny::actionButton("deleteRowBtn",
-                       label = shiny::HTML('<i class="fa fa-trash"></i> Delete Row'),
+                       label = shiny::HTML('<i class="fa fa-trash"></i> Delete Selected'),
                        class = "btn-outline-danger btn-sm"),
           shiny::actionButton("showDeletedBtn",
                        label = "Show Deleted",
@@ -946,91 +956,112 @@ server <- function(input, output, session) {
     if (input$show_unreviewed_only && has_reviewed_at) {
       docs <- docs |> dplyr::filter(is.na(reviewed_at))
     }
-    if (has_reviewed_at) {
-      docs |> dplyr::arrange(dplyr::desc(is.na(reviewed_at)), file_name)
-    } else {
-      docs |> dplyr::arrange(file_name)
-    }
+    docs |> dplyr::arrange(file_name)
   })
 
-  # Update document selector choices
-  shiny::observe({
-    docs <- filtered_documents()
-    all_docs <- all_documents()
+  # Update document selector choices.
+  # observeEvent makes input$show_unreviewed_only and all_documents() EXPLICIT
+  # triggers so unchecking the box always re-populates the dropdown with all
+  # documents. The handler body is auto-isolated by observeEvent, so reads of
+  # values$document_id and input$document_select here do not create reactive
+  # dependencies and cannot cause feedback loops.
+  shiny::observeEvent(
+    list(all_documents(), input$show_unreviewed_only),
+    ignoreNULL = FALSE,
+    {
+      all_docs  <- all_documents()
+      show_only <- isTRUE(input$show_unreviewed_only)
 
-    if (is.null(docs) || nrow(docs) == 0) {
-      if (!is.null(all_docs) && nrow(all_docs) > 0 && input$show_unreviewed_only) {
-        choices <- c("All documents reviewed!" = "")
+      # --- inline filter + sort (mirrors filtered_documents() logic) ---
+      if (is.null(all_docs) || nrow(all_docs) == 0) {
+        docs <- NULL
+        has_reviewed_at <- FALSE
       } else {
-        choices <- c("No documents available" = "")
-      }
-      shiny::updateSelectInput(session, "document_select", choices = choices)
-
-      values$document_id <- NULL
-      values$markdown_text <- NULL
-      values$extracted_df <- NULL
-      values$original_df <- NULL
-      values$doc_metadata <- NULL
-      values$doc_metadata_original <- NULL
-    } else {
-      has_reviewed_at <- "reviewed_at" %in% colnames(docs)
-      display_names <- sapply(seq_len(nrow(docs)), function(i) {
-        status <- if (has_reviewed_at && is.na(docs$reviewed_at[i])) "" else ""
-        paste0(status, " ", docs$file_name[i])
-      })
-      choices <- stats::setNames(docs$document_id, display_names)
-
-      doc_ids_char <- as.character(docs$document_id)
-      current_id_char <- as.character(values$document_id)
-      selected <- if (is.null(values$document_id) || !(current_id_char %in% doc_ids_char)) {
-        as.character(docs$document_id[1])
-      } else {
-        current_id_char
+        has_reviewed_at <- "reviewed_at" %in% colnames(all_docs)
+        docs <- if (show_only && has_reviewed_at) {
+          dplyr::filter(all_docs, is.na(reviewed_at))
+        } else {
+          all_docs
+        }
+        docs <- dplyr::arrange(docs, file_name)
       }
 
-      need_force_load <- is.null(values$document_id) &&
-                         !is.null(input$document_select) &&
-                         input$document_select == selected &&
-                         selected != ""
+      if (is.null(docs) || nrow(docs) == 0) {
+        choices <- if (show_only && !is.null(all_docs) && nrow(all_docs) > 0) {
+          c("All documents reviewed!" = "")
+        } else {
+          c("No documents available" = "")
+        }
+        shiny::updateSelectInput(session, "document_select", choices = choices)
 
-      shiny::updateSelectInput(session, "document_select", choices = choices, selected = selected)
+        values$document_id <- NULL
+        values$markdown_text <- NULL
+        values$extracted_df <- NULL
+        values$original_df <- NULL
+        values$doc_metadata <- NULL
+        values$doc_metadata_original <- NULL
+      } else {
+        display_names <- sapply(seq_len(nrow(docs)), function(i) {
+          status <- if (has_reviewed_at && !is.na(docs$reviewed_at[i])) "\u2713 " else ""
+          paste0(status, docs$file_name[i])
+        })
+        choices <- stats::setNames(docs$document_id, display_names)
 
-      if (need_force_load) {
-        values$document_id <- selected
-
-        doc_id_int <- as.integer(selected)
-        doc_info <- docs |> dplyr::filter(document_id == doc_id_int)
-        if (nrow(doc_info) > 0) {
-          values$doc_metadata <- doc_info
-          values$doc_metadata_original <- doc_info
-          shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "")
-          authors_val <- doc_info$authors[1] %||% ""
-          if (nchar(authors_val) > 0 && grepl("^\\[", authors_val)) {
-            authors_val <- tryCatch(paste(jsonlite::fromJSON(authors_val), collapse = "; "), error = function(e) authors_val)
-          }
-          shiny::updateTextInput(session, "docAuthors", value = authors_val)
-          shiny::updateNumericInput(session, "docYear", value = if (!is.na(doc_info$publication_year[1])) doc_info$publication_year[1] else NA)
-          shiny::updateTextInput(session, "docDoi", value = doc_info$doi[1] %||% "")
-          shiny::updateTextInput(session, "docJournal", value = doc_info$journal[1] %||% "")
-          vol_issue <- paste0(doc_info$volume[1] %||% "", if (!is.null(doc_info$issue[1]) && !is.na(doc_info$issue[1])) paste0("(", doc_info$issue[1], ")") else "")
-          shiny::updateTextInput(session, "docVolume", value = vol_issue)
+        doc_ids_char    <- as.character(docs$document_id)
+        current_id_char <- as.character(values$document_id)
+        selected <- if (is.null(values$document_id) || !(current_id_char %in% doc_ids_char)) {
+          as.character(docs$document_id[1])
+        } else {
+          current_id_char
         }
 
-        tryCatch({
-          values$markdown_text <- ecoextract::get_ocr_markdown(doc_id_int, db_conn = values$db_conn)
-        }, error = function(e) NULL)
+        # need_force_load: values$document_id is NULL but input$document_select
+        # already equals selected, so updateSelectInput won't fire the
+        # document_select observer — we must load the document directly.
+        need_force_load <- is.null(values$document_id) &&
+                           !is.null(input$document_select) &&
+                           input$document_select == selected &&
+                           selected != ""
 
-        tryCatch({
-          records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
-          values$extracted_df <- records
-          values$original_df <- records
-          table_trigger(table_trigger() + 1)
-        }, error = function(e) NULL)
+        shiny::updateSelectInput(session, "document_select", choices = choices, selected = selected)
 
-        values$edit_trigger <- values$edit_trigger + 1
+        if (need_force_load) {
+          values$document_id <- selected
+
+          doc_id_int <- as.integer(selected)
+          doc_info <- docs |> dplyr::filter(document_id == doc_id_int)
+          if (nrow(doc_info) > 0) {
+            values$doc_metadata <- doc_info
+            values$doc_metadata_original <- doc_info
+            shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "")
+            authors_val <- doc_info$authors[1] %||% ""
+            if (nchar(authors_val) > 0 && grepl("^\\[", authors_val)) {
+              authors_val <- tryCatch(paste(jsonlite::fromJSON(authors_val), collapse = "; "), error = function(e) authors_val)
+            }
+            shiny::updateTextInput(session, "docAuthors", value = authors_val)
+            shiny::updateNumericInput(session, "docYear", value = if (!is.na(doc_info$publication_year[1])) doc_info$publication_year[1] else NA)
+            shiny::updateTextInput(session, "docDoi", value = doc_info$doi[1] %||% "")
+            shiny::updateTextInput(session, "docJournal", value = doc_info$journal[1] %||% "")
+            vol_issue <- paste0(doc_info$volume[1] %||% "", if (!is.null(doc_info$issue[1]) && !is.na(doc_info$issue[1])) paste0("(", doc_info$issue[1], ")") else "")
+            shiny::updateTextInput(session, "docVolume", value = vol_issue)
+          }
+
+          tryCatch({
+            values$markdown_text <- ecoextract::get_ocr_markdown(doc_id_int, db_conn = values$db_conn)
+          }, error = function(e) NULL)
+
+          tryCatch({
+            records <- process_records(ecoextract::get_records(doc_id_int, db_conn = values$db_conn))
+            values$extracted_df <- records
+            values$original_df <- records
+            table_trigger(table_trigger() + 1)
+          }, error = function(e) NULL)
+
+          values$edit_trigger <- values$edit_trigger + 1
+        }
       }
     }
-  })
+  )
 
   # Document count display
   output$documentCount <- shiny::renderUI({
@@ -1044,6 +1075,15 @@ server <- function(input, output, session) {
     shiny::div(style = "color: #6c757d; font-size: 0.9em;",
       shiny::strong(unreviewed), " of ", shiny::strong(total), " unreviewed"
     )
+  })
+
+  # Show the current document's filename as selectable text below the dropdown
+  output$current_doc_filename_display <- shiny::renderText({
+    docs <- all_documents()
+    sel  <- input$document_select
+    if (is.null(docs) || is.null(sel) || sel == "") return("")
+    doc <- dplyr::filter(docs, as.character(document_id) == sel)
+    if (nrow(doc) > 0) doc$file_name[1] else ""
   })
 
   # Handle document selection
@@ -1462,7 +1502,7 @@ server <- function(input, output, session) {
   )
 
   # Interactive data table — only re-renders on explicit table_trigger(); cell edits use replaceData
-  output$interactiveTable <- DT::renderDataTable({
+  output$interactiveTable <- DT::renderDataTable(server = FALSE, {
     table_trigger()
     shiny::isolate({
       shiny::req(values$extracted_df)
@@ -1508,20 +1548,9 @@ server <- function(input, output, session) {
     })
   })
 
-  # Helper: push current extracted_df to the DT proxy without a full re-render.
-  # Preserves sort order, scroll position, and page.  Used by add/delete/toggle
-  # handlers so they no longer need table_trigger() for a destructive re-render.
+  # Helper: trigger a full table re-render.
   refresh_table_proxy <- function() {
-    df <- values$extracted_df
-    if (is.null(df)) return()
-    ordered_names <- names(df)[values$col_order + 1]
-    visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
-    repl_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(df)) {
-      df[is.na(df$deleted_by_user), visible_names, drop = FALSE]
-    } else {
-      df[, visible_names, drop = FALSE]
-    }
-    DT::replaceData(dt_proxy, repl_data, resetPaging = FALSE, rownames = FALSE)
+    table_trigger(table_trigger() + 1)
   }
 
   # Handle cell edits
@@ -1561,15 +1590,11 @@ server <- function(input, output, session) {
           record_id_snapshot = as.character(current_record_id)
         )
 
-        # Update display in-place without resetting page
-        ordered_names <- names(values$extracted_df)[values$col_order + 1]
-        visible_names  <- ordered_names[!ordered_names %in% values$hidden_cols]
-        repl_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
-          values$extracted_df[is.na(values$extracted_df$deleted_by_user), visible_names, drop = FALSE]
-        } else {
-          values$extracted_df[, visible_names, drop = FALSE]
-        }
-        DT::replaceData(dt_proxy, repl_data, resetPaging = FALSE, rownames = FALSE)
+        session$sendCustomMessage("dtUpdateCell", list(
+          row   = edit_info$row - 1L,
+          col   = edit_info$col,
+          value = as.character(converted_value)
+        ))
 
         # Sentences column edited — rebuild OCR evidence index so highlighting
         # reflects the new sentences.  Any other column edit leaves the OCR
@@ -1592,6 +1617,10 @@ server <- function(input, output, session) {
       }
     }
   })
+
+  # Track which actual row was last scrolled-to so re-clicking the same row
+  # does not trigger another scroll.
+  last_scrolled_row <- NULL
 
   # Handle row selection — update selected_evidence and trigger JS span highlight.
   # Uses observeEvent (not observe) so it fires only when the selection itself
@@ -1616,10 +1645,12 @@ server <- function(input, output, session) {
           )
         }
         values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
+        should_scroll <- !identical(selected_row, last_scrolled_row)
+        last_scrolled_row <<- selected_row
         session$sendCustomMessage("highlightEvidenceRow", list(
           row_index = selected_row - 1L,
           sentences = as.list(sentences),
-          scroll    = TRUE
+          scroll    = should_scroll
         ))
       }
     } else {
@@ -1649,10 +1680,16 @@ server <- function(input, output, session) {
 
   # Delete row functionality
   shiny::observeEvent(input$deleteRowBtn, {
-    shiny::req(values$extracted_df, input$interactiveTable_rows_selected)
-    selected_row <- input$interactiveTable_rows_selected
-    if (length(selected_row) > 0) {
-      row_to_delete <- display_to_actual_row(selected_row[1])
+    shiny::req(values$extracted_df)
+    selected_rows <- input$interactiveTable_rows_selected
+    n <- length(selected_rows)
+    if (n == 0) {
+      shiny::showNotification("Please select one or more rows to delete.", type = "warning", duration = 3)
+      return()
+    }
+    if (n == 1) {
+      # Single row — immediate soft delete, no confirmation needed
+      row_to_delete <- display_to_actual_row(selected_rows[1])
       if ("deleted_by_user" %in% names(values$extracted_df) && !is.na(row_to_delete)) {
         df <- values$extracted_df
         df[row_to_delete, "deleted_by_user"] <- as.character(Sys.time())
@@ -1660,10 +1697,47 @@ server <- function(input, output, session) {
       }
       values$edit_trigger <- values$edit_trigger + 1
       refresh_table_proxy()
-      shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.", type = "message", duration = 3)
+      shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.",
+                              type = "message", duration = 3)
     } else {
-      shiny::showNotification("Please select a row to delete.", type = "warning", duration = 3)
+      # Multiple rows — confirm before deleting
+      shiny::showModal(shiny::modalDialog(
+        title = "Confirm bulk delete",
+        paste0("Mark ", n, " selected rows for deletion? ",
+               "Click \u2018Verify Records\u2019 afterward to commit."),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton("confirmBulkDeleteBtn",
+                              paste("Delete", n, "rows"),
+                              class = "btn-danger")
+        ),
+        easyClose = TRUE
+      ))
     }
+  })
+
+  shiny::observeEvent(input$confirmBulkDeleteBtn, {
+    shiny::removeModal()
+    shiny::req(values$extracted_df)
+    selected_rows <- input$interactiveTable_rows_selected
+    if (length(selected_rows) == 0) return()
+
+    # Map all display indices to actual df rows BEFORE any mutation so that
+    # deleting row i doesn't shift the index of row j.
+    rows_to_delete <- vapply(selected_rows, display_to_actual_row, integer(1))
+    rows_to_delete <- rows_to_delete[!is.na(rows_to_delete)]
+
+    if (length(rows_to_delete) > 0 && "deleted_by_user" %in% names(values$extracted_df)) {
+      df <- values$extracted_df
+      df[rows_to_delete, "deleted_by_user"] <- as.character(Sys.time())
+      values$extracted_df <- df
+    }
+    values$edit_trigger <- values$edit_trigger + 1
+    refresh_table_proxy()
+    shiny::showNotification(
+      paste0(length(rows_to_delete), " rows marked for deletion. Click \u2018Verify Records\u2019 to save."),
+      type = "message", duration = 3
+    )
   })
 
   # Show/hide deleted toggle

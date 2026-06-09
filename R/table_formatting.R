@@ -19,12 +19,14 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
   }
 
   DT::datatable(data,
+    extensions = 'Select',
     options = list(
       pageLength = page_length,
       scrollX = TRUE,
       scrollY = height,
       scrollCollapse = TRUE,
       autoWidth = FALSE,
+      select = list(style = 'os', items = 'row'),
       columnDefs = list(list(
         targets = "_all",
         className = "dt-nowrap",
@@ -53,12 +55,17 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
     ),
     rownames = FALSE,
     editable = editable,
-    selection = 'single',
+    selection = 'none',
     class = 'cell-border stripe compact',
     callback = DT::JS(
       "if ($('#dt-tooltip').length === 0) {",
       "  $('body').append('<div id=\"dt-tooltip\" style=\"position:fixed;background:#333;color:#fff;padding:6px 10px;border-radius:4px;font-size:12px;max-width:350px;white-space:pre-wrap;word-wrap:break-word;z-index:9999;pointer-events:none;display:none;\"></div>');",
-      "}"
+      "}",
+      "table.on('click.dt', 'tbody td', function() {",
+      "  var idx = table.rows({selected: true}).indexes().toArray();",
+      "  var DT_id = table.table().container().parentNode.id;",
+      "  Shiny.setInputValue(DT_id + '_rows_selected', idx.map(function(i){return i+1;}), {priority:'event'});",
+      "});"
     )
   )
 }
