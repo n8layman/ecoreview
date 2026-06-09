@@ -4,11 +4,10 @@
 #'
 #' @param data Dataframe to display
 #' @param height Table height (default: "600px")
-#' @param page_length Number of rows per page (default: 15)
 #' @param disable_cols Character vector of column names to make non-editable
 #' @return Styled DT::datatable object
 #' @export
-create_styled_datatable <- function(data, height = "600px", page_length = 15,
+create_styled_datatable <- function(data, height = "600px",
                                     disable_cols = character(0)) {
   disabled_indices <- which(names(data) %in% disable_cols) - 1L  # 0-based
 
@@ -21,7 +20,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
   DT::datatable(data,
     extensions = 'Select',
     options = list(
-      pageLength = page_length,
+      paging = FALSE,
       scrollX = TRUE,
       scrollY = height,
       scrollCollapse = TRUE,
@@ -50,7 +49,7 @@ create_styled_datatable <- function(data, height = "600px", page_length = 15,
           "}"
         )
       )),
-      dom = 'frtip',
+      dom = 'frti',
       fixedColumns = FALSE
     ),
     rownames = FALSE,

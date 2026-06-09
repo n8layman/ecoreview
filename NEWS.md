@@ -1,8 +1,19 @@
 # ecoreview news
 
-## 0.1.16 (2026-06-09)
+## 0.1.17 (2026-06-09)
 
 ### Improvements
+
+- **Infinite scroll** (issue #21): replaced DataTables pagination with a single
+  scrollable container. All rows for the current document are visible without
+  page navigation (`paging = FALSE`, pagination controls removed from `dom`).
+  The existing `scrollY` container provides the bounded scroll area.
+
+---
+
+## 0.1.16 (2026-06-09)
+
+### New features and bug fixes
 
 - **OS-style multi-row selection** (issue #19): switched to the DataTables Select
   extension with `style = 'os'`. Plain click selects a single row; Ctrl/Cmd+click

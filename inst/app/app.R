@@ -1529,7 +1529,7 @@ server <- function(input, output, session) {
         display_data <- display_data[, visible_names, drop = FALSE]
       }
 
-      dt <- ecoreview::create_styled_datatable(display_data, height = "600px", page_length = 15,
+      dt <- ecoreview::create_styled_datatable(display_data, height = "600px",
                                                disable_cols = c("id", "record_id"))
 
       if ("id" %in% names(display_data)) {
