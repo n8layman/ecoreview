@@ -11,6 +11,14 @@
   Uses the `ecrUnmatchedByRow` JS global (already set by `setEvidenceIndex`)
   keyed by the DataTables data-row index. Other column tooltips are unchanged.
 
+### Bug fixes
+
+- **`dtUpdateCell` "Non-table node initialisation" warning**: the JS handler
+  was calling `$('#interactiveTable').DataTable()` on the outer Shiny output
+  `<div>`, not the inner `<table>`. Changed to
+  `$('#interactiveTable table').DataTable()` so the existing API instance is
+  returned rather than DataTables attempting re-initialisation on a div.
+
 ---
 
 ## 0.1.17 (2026-06-09)

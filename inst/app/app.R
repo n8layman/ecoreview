@@ -251,7 +251,7 @@ ui <- shiny::fluidPage(
     shiny::tags$script(shiny::HTML("
 // ---- DataTable targeted cell update (preserves scroll/sort) ----
 Shiny.addCustomMessageHandler('dtUpdateCell', function(msg) {
-  var api = $('#interactiveTable').DataTable();
+  var api = $('#interactiveTable table').DataTable();
   api.cell(msg.row, msg.col).data(msg.value).draw(false);
 });
 
