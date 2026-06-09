@@ -1795,6 +1795,7 @@ server <- function(input, output, session) {
       ),
       shiny::uiOutput("colMgmtBuckets"),
       footer = shiny::tagList(
+        shiny::actionButton("showAllColsBtn", "Show All", class = "btn-outline-success btn-sm"),
         shiny::actionButton("hideAllColsBtn", "Hide All", class = "btn-outline-warning btn-sm"),
         shiny::modalButton("Cancel"),
         shiny::actionButton("applyColMgmt", "Apply", class = "btn-primary")
@@ -1820,6 +1821,15 @@ server <- function(input, output, session) {
         input_id = "col_hidden_list"
       )
     )
+  })
+
+  shiny::observeEvent(input$showAllColsBtn, {
+    state <- col_mgmt_state()
+    shiny::req(state)
+    col_mgmt_state(list(
+      visible = c(state$visible, state$hidden),
+      hidden  = character(0)
+    ))
   })
 
   shiny::observeEvent(input$hideAllColsBtn, {

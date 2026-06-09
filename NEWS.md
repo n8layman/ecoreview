@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.19 (2026-06-09)
+
+### Improvements
+
+- **"Show All" button in columns modal** (issue #18): added a "Show All"
+  button alongside the existing "Hide All" button. Clicking it moves every
+  column from the Hidden bucket back to Visible in one step.
+
+---
+
 ## 0.1.18 (2026-06-09)
 
 ### Improvements
