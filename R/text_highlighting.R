@@ -118,25 +118,6 @@ find_best_match_in_html <- function(plain_text, clean_evidence) {
   list(text = substr(plain_text, m[[1L]], end_pos), tier = 1L)
 }
 
-#' Build a whitespace-flexible regex from a squished plain-text match
-#'
-#' The plain text produced by \code{html_to_plain_text} collapses all
-#' whitespace to single spaces, but the original HTML may contain raw
-#' newlines, carriage returns, or multiple spaces between the same words.
-#' This helper escapes regex metacharacters in each word and joins them with
-#' \code{\\s+} so the pattern can locate the same word sequence in the
-#' original unsquished HTML.
-#'
-#' @param text Plain-text string with single-space word separators
-#' @return A Perl-compatible regex string
-#' @keywords internal
-make_flex_sub_pattern <- function(text) {
-  words   <- unlist(strsplit(text, "\\s+"))
-  words   <- words[nchar(words) > 0L]
-  escaped <- gsub("([.+*?^${}()|\\[\\]\\\\])", "\\\\\\1", words)
-  paste(escaped, collapse = "\\s+")
-}
-
 #' Clean sentence for comparison by removing markdown and normalizing whitespace
 #'
 #' @param sentence Raw sentence text
@@ -204,8 +185,12 @@ build_evidence_index <- function(html, extracted_df) {
     return(list(html = html, row_map = list(), unmatched_by_row = list()))
   }
 
-  plain_text    <- html_to_plain_text(html)
-  modified_html <- html
+  # Collapse all whitespace runs in the HTML to single spaces before any
+  # matching or injection.  The OCR source often has raw newlines or
+  # multi-space gaps mid-sentence; normalising here makes the plain-text
+  # match positions align with the HTML so a simple fixed-string sub works.
+  modified_html <- gsub("\\s+", " ", html, perl = TRUE)
+  plain_text    <- html_to_plain_text(modified_html)
 
   # sentence text -> ev_id  (first unique matched text wins)
   sentence_to_id <- list()
@@ -245,18 +230,9 @@ build_evidence_index <- function(html, extracted_df) {
         matched_to_id[[matched]] <- ev_id
         sentence_to_id[[sent]] <- ev_id
 
-        # Use a whitespace-flexible regex so the injection works even when
-        # the original HTML has raw newlines or multi-space gaps where the
-        # squished plain text has single spaces.
-        flex_pat <- make_flex_sub_pattern(matched)
-        m2       <- regexpr(flex_pat, modified_html, perl = TRUE)
-        if (m2[[1L]] > 0L) {
-          actual_span   <- substr(modified_html, m2[[1L]],
-                                  m2[[1L]] + attr(m2, "match.length") - 1L)
-          span          <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
-                                  '">', actual_span, "</span>")
-          modified_html <- sub(flex_pat, span, modified_html, perl = TRUE)
-        }
+        span          <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
+                                '">', matched, "</span>")
+        modified_html <- sub(matched, span, modified_html, fixed = TRUE)
       }
     }
   }
