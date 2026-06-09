@@ -311,9 +311,12 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     });
   });
 
-  // Scroll first highlighted span into view
-  var first = document.querySelector('.ecr-ev-active');
-  if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
+  // Scroll first highlighted span into view — skip when data.scroll === false
+  // (e.g. same-row re-highlight triggered by a cell edit, not a row change)
+  if (data.scroll !== false) {
+    var first = document.querySelector('.ecr-ev-active');
+    if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }
 });
 
 // ---- Tooltip on highlighted spans + sentence modal ----
@@ -1144,7 +1147,10 @@ server <- function(input, output, session) {
   output$pdfViewer <- shiny::renderUI({
     shiny::req(values$document_id)
 
-    docs <- all_documents()
+    # isolate() so that edit_trigger / record changes don't re-render the iframe
+    # and reset the PDF scroll position — the viewer only needs to reload when
+    # the selected document changes (values$document_id above handles that).
+    docs <- shiny::isolate(all_documents())
     doc_info <- docs |> dplyr::filter(document_id == values$document_id)
 
     if (nrow(doc_info) == 0 || is.null(doc_info$file_path) || !file.exists(doc_info$file_path[1])) {
@@ -1502,6 +1508,22 @@ server <- function(input, output, session) {
     })
   })
 
+  # Helper: push current extracted_df to the DT proxy without a full re-render.
+  # Preserves sort order, scroll position, and page.  Used by add/delete/toggle
+  # handlers so they no longer need table_trigger() for a destructive re-render.
+  refresh_table_proxy <- function() {
+    df <- values$extracted_df
+    if (is.null(df)) return()
+    ordered_names <- names(df)[values$col_order + 1]
+    visible_names <- ordered_names[!ordered_names %in% values$hidden_cols]
+    repl_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(df)) {
+      df[is.na(df$deleted_by_user), visible_names, drop = FALSE]
+    } else {
+      df[, visible_names, drop = FALSE]
+    }
+    DT::replaceData(dt_proxy, repl_data, resetPaging = FALSE, rownames = FALSE)
+  }
+
   # Handle cell edits
   shiny::observeEvent(input$interactiveTable_cell_edit, {
     shiny::req(values$extracted_df)
@@ -1548,17 +1570,43 @@ server <- function(input, output, session) {
           values$extracted_df[, visible_names, drop = FALSE]
         }
         DT::replaceData(dt_proxy, repl_data, resetPaging = FALSE, rownames = FALSE)
+
+        # Sentences column edited — rebuild OCR evidence index so highlighting
+        # reflects the new sentences.  Any other column edit leaves the OCR
+        # HTML untouched.
+        if (isTRUE(col_name == "all_supporting_source_sentences")) {
+          base_html <- shiny::isolate(ocr_base_html())
+          if (!is.null(base_html)) {
+            ocr_result <- tryCatch(
+              ecoreview::build_evidence_index(base_html, values$extracted_df),
+              error = function(e) list(html = base_html, row_map = list(),
+                                       unmatched_by_row = list())
+            )
+            ocr_display_html(ocr_result$html)
+            session$sendCustomMessage("setEvidenceIndex",
+                                      list(row_map          = ocr_result$row_map,
+                                           unmatched_by_row = ocr_result$unmatched_by_row,
+                                           sentence_tier_map = list()))
+          }
+        }
       }
     }
   })
 
-  # Handle row selection — update selected_evidence and trigger JS span highlight
-  shiny::observe({
-    if (!is.null(input$interactiveTable_rows_selected) && length(input$interactiveTable_rows_selected) > 0) {
-      shiny::req(values$extracted_df)
-      selected_row <- display_to_actual_row(input$interactiveTable_rows_selected[1])
-      if (!is.na(selected_row) && selected_row <= nrow(values$extracted_df)) {
-        row_data <- values$extracted_df[selected_row, ]
+  # Handle row selection — update selected_evidence and trigger JS span highlight.
+  # Uses observeEvent (not observe) so it fires only when the selection itself
+  # changes, NOT when values$extracted_df changes during a cell edit.  Without
+  # this the observer re-ran on every cell edit (because req(values$extracted_df)
+  # created a reactive dependency), sending highlightEvidenceRow with the same
+  # row and triggering an unwanted scrollIntoView.
+  shiny::observeEvent(input$interactiveTable_rows_selected, ignoreNULL = FALSE, {
+    selected_rows <- input$interactiveTable_rows_selected
+    if (!is.null(selected_rows) && length(selected_rows) > 0) {
+      df <- shiny::isolate(values$extracted_df)
+      shiny::req(df)
+      selected_row <- display_to_actual_row(selected_rows[1])
+      if (!is.na(selected_row) && selected_row <= nrow(df)) {
+        row_data <- df[selected_row, ]
         sentences <- character(0)
         if ("all_supporting_source_sentences" %in% names(row_data) &&
             !is.na(row_data$all_supporting_source_sentences)) {
@@ -1570,13 +1618,15 @@ server <- function(input, output, session) {
         values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
         session$sendCustomMessage("highlightEvidenceRow", list(
           row_index = selected_row - 1L,
-          sentences = as.list(sentences)
+          sentences = as.list(sentences),
+          scroll    = TRUE
         ))
       }
     } else {
       values$selected_evidence <- NULL
       session$sendCustomMessage("highlightEvidenceRow",
-                                list(row_index = NULL, sentences = list()))
+                                list(row_index = NULL, sentences = list(),
+                                     scroll = FALSE))
     }
   })
 
@@ -1593,7 +1643,7 @@ server <- function(input, output, session) {
 
     values$extracted_df <- rbind(values$extracted_df, new_row)
     values$edit_trigger <- values$edit_trigger + 1
-    table_trigger(table_trigger() + 1)
+    refresh_table_proxy()
     shiny::showNotification("New row added. Click 'Verify Records' to save changes.", type = "message", duration = 3)
   })
 
@@ -1609,7 +1659,7 @@ server <- function(input, output, session) {
         values$extracted_df <- df
       }
       values$edit_trigger <- values$edit_trigger + 1
-      table_trigger(table_trigger() + 1)
+      refresh_table_proxy()
       shiny::showNotification("Row marked for deletion. Click 'Verify Records' to save.", type = "message", duration = 3)
     } else {
       shiny::showNotification("Please select a row to delete.", type = "warning", duration = 3)
@@ -1627,7 +1677,7 @@ server <- function(input, output, session) {
       shiny::showNotification("Hiding deleted interactions", type = "message", duration = 2)
     }
     values$edit_trigger <- values$edit_trigger + 1
-    table_trigger(table_trigger() + 1)
+    refresh_table_proxy()
   })
 
   # Initialise col_order to 0-based default when the first document loads

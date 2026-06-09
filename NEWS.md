@@ -1,5 +1,40 @@
 # ecoreview news
 
+## 0.1.14 (2026-06-09)
+
+### Bug fixes
+
+- **OCR pane scroll preserved on cell edit** (issue #20): the row-selection
+  observer was an `observe()` that depended on `values$extracted_df`. Every
+  cell edit mutated `values$extracted_df`, re-triggering the observer with the
+  same selected row and causing `scrollIntoView` to jump the OCR pane back to
+  the first highlighted sentence. Fixed by switching to
+  `observeEvent(input$interactiveTable_rows_selected)` and isolating
+  `extracted_df` reads so the observer fires only on actual row-selection
+  changes. The JS handler also now respects a `scroll: false` flag so the
+  same-row re-highlight path (e.g. after a delete) can suppress the scroll.
+- **PDF scroll preserved on add/delete/toggle** (issue #20): `output$pdfViewer`
+  depended on `all_documents()` which in turn depended on `values$edit_trigger`.
+  Incrementing `edit_trigger` on add/delete/show_deleted caused a full iframe
+  re-render, resetting the PDF to page 1. Fixed by reading `all_documents()`
+  via `shiny::isolate()` inside `pdfViewer` so it only re-renders when the
+  selected document changes.
+- **Table sort order preserved on add/delete/show_deleted** (issue #22): those
+  handlers called `table_trigger()`, destroying and recreating the entire
+  DataTable instance (and therefore its sort state). Replaced with a
+  `refresh_table_proxy()` helper that calls `DT::replaceData()`, the same
+  in-place update already used by cell edits. Sort column, sort direction,
+  scroll position, and current page are all preserved.
+
+### Improvements
+
+- **OCR highlighting updates on sentences edit**: editing the
+  `all_supporting_source_sentences` cell now rebuilds the evidence span index
+  and resends `setEvidenceIndex` to the client. All other column edits leave
+  the OCR HTML completely untouched.
+
+---
+
 ## 0.1.13 (2026-06-09)
 
 ### Bug fixes
