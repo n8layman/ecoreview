@@ -1,5 +1,78 @@
 # ecoreview news
 
+## 0.1.13 (2026-06-09)
+
+### Bug fixes
+
+- `build_evidence_index`: fixed ev_id corruption where `sentence_to_id` was
+  set before the injection-success check. A failed injection rolled back the
+  counter but left the mapping pointing at the next successfully-injected
+  sentence's span, causing unrelated text to be highlighted for that row.
+- `build_evidence_index`: strip `<strong>/<em>/<b>/<i>` from the working HTML
+  before matching/injection so that bold OCR headings like
+  `**Table 1** Detection...` (rendered as `<strong>Table 1</strong>
+  Detection...`) no longer block fixed-string span injection.
+- `html_to_plain_text`: replace `<td>/<th>` tags with spaces before stripping
+  so adjacent table cells are not concatenated. Previously, evidence sentences
+  drawn from table rows (e.g. `Other infection | 20 | 2 0.391 ± 0.32 ...`)
+  could never match because `infection</td><td>20` stripped to `infection20`
+  with no separator between tokens.
+- `find_best_match_in_html`: rewrote token-matching to insert
+  `[^A-Za-z0-9]*` between every pair of adjacent characters within a token so
+  that OCR line-break hyphens (`amphis-tome`) correctly match the un-hyphenated
+  evidence word (`amphistome`).
+
+---
+
+## 0.1.12 (2026-06-09)
+
+### Improvements
+
+- OCR viewer now renders page footers and table footnotes. Content in
+  `page$other` (e.g. `page_footer`, abbreviation keys) is rendered below the
+  table it annotates. Items of type `title` are skipped to avoid duplication.
+
+---
+
+## 0.1.11 (2026-06-08)
+
+### Bug fixes
+
+- Fixed regression introduced in 0.1.10 where stripping all whitespace from
+  HTML before plain-text extraction inadvertently broke the fixed-string span
+  injection, causing nothing to be highlighted.
+
+---
+
+## 0.1.10 (2026-06-08)
+
+### Bug fixes
+
+- Evidence sentences split across OCR line breaks now match. The working HTML
+  is whitespace-normalised (`\\s+` → single space) before plain-text extraction
+  so that a sentence broken across lines in the raw OCR still aligns with the
+  flat plain text used for matching.
+
+---
+
+## 0.1.9 (2026-06-07)
+
+### Improvements
+
+- OCR tooltip redesigned: two-column layout when four or more sentences are
+  present, vertically centred on the cursor, and a click-to-expand scrollable
+  modal showing all supporting sentences in full.
+
+### Bug fixes
+
+- Tooltip and sentence modal were non-functional: the IIFE created the modal
+  element via `document.body.appendChild()` before `<body>` existed (script
+  runs in `<head>`), aborting the entire IIFE and silently dropping all event
+  listeners. Fixed with lazy initialisation (`getSentModal()`) mirroring the
+  existing `getTooltip()` pattern.
+
+---
+
 ## 0.1.8 (2026-06-02)
 
 ### Improvements
