@@ -11,6 +11,7 @@ run_app(
   export_prefix = "ecoextract",
   priority_cols = NULL,
   visible_cols = NULL,
+  pdf_dir = NULL,
   ...
 )
 }
@@ -30,6 +31,12 @@ in their original order. NULL (default) uses the data frame column order.}
 \item{visible_cols}{Character vector of column names to show. All other columns
 are hidden from the table display (the underlying data is unchanged). NULL
 (default) shows all columns.}
+
+\item{pdf_dir}{Optional path to the directory containing PDF files. Use
+when the \code{.db} file is stored separately from the PDFs or when the app
+is launched from a different working directory. If the path stored in
+the database does not resolve, the app falls back to looking for the
+file's basename here. NULL (default) uses the path stored in the database.}
 
 \item{...}{Additional arguments passed to shiny::runApp()}
 }

@@ -1193,7 +1193,19 @@ server <- function(input, output, session) {
     docs <- shiny::isolate(all_documents())
     doc_info <- docs |> dplyr::filter(document_id == values$document_id)
 
-    if (nrow(doc_info) == 0 || is.null(doc_info$file_path) || !file.exists(doc_info$file_path[1])) {
+    # Resolve PDF path, falling back to pdf_dir option if stored path is missing
+    pdf_path <- if (nrow(doc_info) > 0 && !is.null(doc_info$file_path))
+      doc_info$file_path[1] else NULL
+
+    if (!is.null(pdf_path) && !file.exists(pdf_path)) {
+      pdf_dir_override <- getOption("ecoreview.pdf_dir", NULL)
+      if (!is.null(pdf_dir_override)) {
+        candidate <- file.path(pdf_dir_override, basename(pdf_path))
+        if (file.exists(candidate)) pdf_path <- candidate
+      }
+    }
+
+    if (is.null(pdf_path) || !file.exists(pdf_path)) {
       return(shiny::div(style = "padding: 40px; text-align: center;",
         shiny::div(style = "color: #6c757d; margin-bottom: 15px;",
           shiny::tags$i(class = "fas fa-file-pdf", style = "font-size: 48px; opacity: 0.5;")
@@ -1213,7 +1225,6 @@ server <- function(input, output, session) {
       ))
     }
 
-    pdf_path <- doc_info$file_path[1]
     pdf_dir <- dirname(pdf_path)
     pdf_name <- basename(pdf_path)
 

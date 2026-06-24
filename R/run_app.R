@@ -15,6 +15,11 @@
 #' @param visible_cols Character vector of column names to show. All other columns
 #'   are hidden from the table display (the underlying data is unchanged). NULL
 #'   (default) shows all columns.
+#' @param pdf_dir Optional path to the directory containing PDF files. Use
+#'   when the `.db` file is stored separately from the PDFs or when the app
+#'   is launched from a different working directory. If the path stored in
+#'   the database does not resolve, the app falls back to looking for the
+#'   file's basename here. NULL (default) uses the path stored in the database.
 #' @param ... Additional arguments passed to shiny::runApp()
 #'
 #' @return Launches the Shiny application (does not return)
@@ -46,6 +51,7 @@ run_app <- function(
   export_prefix = "ecoextract",
   priority_cols = NULL,
   visible_cols = NULL,
+  pdf_dir = NULL,
   ...
 ) {
   # Store configuration in options for the app to access
@@ -59,10 +65,11 @@ run_app <- function(
     ecoreview.export_prefix = export_prefix,
     ecoreview.user_working_dir = user_wd,
     ecoreview.priority_cols = priority_cols,
-    ecoreview.visible_cols = visible_cols
+    ecoreview.visible_cols = visible_cols,
+    ecoreview.pdf_dir = pdf_dir
   )
 
- # Find the app directory
+  # Find the app directory
   app_dir <- system.file("app", package = "ecoreview")
 
   if (app_dir == "") {

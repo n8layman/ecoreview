@@ -1,5 +1,17 @@
 # ecoreview news
 
+## 0.1.21 (2026-06-09)
+
+### Improvements
+
+- **`pdf_dir` parameter for `run_app()`** (issue #26): when the `.db` file
+  lives in a different folder from the PDFs, pass `pdf_dir = "/path/to/pdfs"`
+  and the PDF viewer will fall back to looking for the file's basename there
+  if the path stored in the database does not resolve. Stored as
+  `options(ecoreview.pdf_dir)` so the Shiny app can read it without arguments.
+
+---
+
 ## 0.1.20 (2026-06-09)
 
 ### Improvements
