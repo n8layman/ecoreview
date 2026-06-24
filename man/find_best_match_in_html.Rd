@@ -2,23 +2,25 @@
 % Please edit documentation in R/text_highlighting.R
 \name{find_best_match_in_html}
 \alias{find_best_match_in_html}
-\title{Find best matching span in plain text for an evidence fragment}
+\title{Find a matching span in plain text for an evidence fragment}
 \usage{
-find_best_match_in_html(plain_text, clean_evidence, threshold)
+find_best_match_in_html(plain_text, clean_evidence)
 }
 \arguments{
 \item{plain_text}{Plain text of the document (pre-stripped HTML)}
 
 \item{clean_evidence}{Cleaned evidence fragment}
-
-\item{threshold}{Similarity threshold}
 }
 \value{
-Matched text span from plain_text, or NULL
+Named list with \code{text} (matched span from plain_text) and
+\code{tier} (always 1L), or \code{NULL} if no match found.
 }
 \description{
-The evidence fragment IS the unit to locate. We search the plain text
-(what mark.js sees in the DOM) using a sliding window of the same length
-as the fragment so mark.js can find it directly.
+Splits the evidence into alphanumeric tokens (words/numbers) separated by
+non-alphanumeric runs.  Between tokens, \code{[^A-Za-z0-9]+} is used so
+punctuation differences ("Table 1: ..." vs "Table 1 ...") are ignored.
+Within each token, \code{[^A-Za-z0-9]*} is inserted between every pair of
+adjacent characters so OCR line-break hyphens ("amphis-tome") match the
+evidence word ("amphistome").  Search is case-insensitive.
 }
 \keyword{internal}

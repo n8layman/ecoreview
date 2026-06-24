@@ -4,19 +4,12 @@
 \alias{create_styled_datatable}
 \title{Create a styled DataTable with consistent options}
 \usage{
-create_styled_datatable(
-  data,
-  height = "600px",
-  page_length = 15,
-  disable_cols = character(0)
-)
+create_styled_datatable(data, height = "600px", disable_cols = character(0))
 }
 \arguments{
 \item{data}{Dataframe to display}
 
 \item{height}{Table height (default: "600px")}
-
-\item{page_length}{Number of rows per page (default: 15)}
 
 \item{disable_cols}{Character vector of column names to make non-editable}
 }

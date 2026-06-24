@@ -4,18 +4,18 @@
 \alias{build_evidence_index}
 \title{Build a pre-injected evidence index for the OCR viewer}
 \usage{
-build_evidence_index(html, extracted_df, similarity_threshold = 0.7)
+build_evidence_index(html, extracted_df)
 }
 \arguments{
 \item{html}{Rendered HTML string (from render_tensorlake_html)}
 
 \item{extracted_df}{Data frame containing all_supporting_source_sentences}
-
-\item{similarity_threshold}{Minimum cosine-trigram similarity (default 0.7)}
 }
 \value{
-Named list: \code{html} (modified HTML) and \code{row_map}
-(list keyed by 0-based row index, each element a list of ev_ids)
+Named list: \code{html} (modified HTML), \code{row_map} (list keyed
+by 0-based row index, each element a list of ev_ids), and
+\code{unmatched_by_row} (list keyed by 0-based row index, each element a
+character vector of sentences that could not be located in the document).
 }
 \description{
 Collects all unique supporting sentences from every row in the extracted
