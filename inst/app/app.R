@@ -617,7 +617,8 @@ server <- function(input, output, session) {
     col_order = NULL,
     hidden_cols = character(0),
     doc_metadata = NULL,
-    doc_metadata_original = NULL
+    doc_metadata_original = NULL,
+    pdf_dir = getOption("ecoreview.pdf_dir", NULL)
   )
 
   # Explicit trigger for full table re-renders; cell edits use replaceData instead
@@ -680,6 +681,22 @@ server <- function(input, output, session) {
         "No file selected"
       }
     }
+  })
+
+  # Setup shinyDirs for PDF folder selection
+  shinyFiles::shinyDirChoose(input, "pdfDirBrowse", roots = volumes, session = session)
+
+  shiny::observeEvent(input$pdfDirBrowse, {
+    if (!is.integer(input$pdfDirBrowse)) {
+      dir_selected <- shinyFiles::parseDirPath(volumes, input$pdfDirBrowse)
+      if (length(dir_selected) > 0 && nzchar(dir_selected)) {
+        values$pdf_dir <- as.character(dir_selected)
+      }
+    }
+  }, ignoreInit = TRUE)
+
+  output$selectedPdfDir <- shiny::renderText({
+    if (!is.null(values$pdf_dir)) values$pdf_dir else "Not set (automatic)"
   })
 
   # Setup shinyFiles for database file browsing in change modal
@@ -768,6 +785,19 @@ server <- function(input, output, session) {
                     width = "100%"),
           shiny::div(style = "margin-top: 10px;",
             shiny::actionButton("connectPathBtn", "Connect", class = "btn-primary", style = "width: 100%;")
+          ),
+
+          shiny::hr(style = "margin: 20px 0;"),
+
+          shiny::h5("PDF Folder (optional)"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            "Override where the app looks for PDF files. Leave blank to use automatic path resolution."
+          ),
+          shiny::div(style = "display: flex; gap: 10px; align-items: center;",
+            shinyFiles::shinyDirButton("pdfDirBrowse", "Browse...",
+                            title = "Select PDF Folder",
+                            class = "btn-outline-secondary btn-sm"),
+            shiny::textOutput("selectedPdfDir", inline = TRUE)
           )
         )
       ))
@@ -1193,17 +1223,16 @@ server <- function(input, output, session) {
     docs <- shiny::isolate(all_documents())
     doc_info <- docs |> dplyr::filter(document_id == values$document_id)
 
-    # Resolve PDF path, falling back to pdf_dir option if stored path is missing
-    pdf_path <- if (nrow(doc_info) > 0 && !is.null(doc_info$file_path))
+    # Resolve PDF path through a cascade of fallback strategies
+    stored_path <- if (nrow(doc_info) > 0 && !is.null(doc_info$file_path))
       doc_info$file_path[1] else NULL
 
-    if (!is.null(pdf_path) && !file.exists(pdf_path)) {
-      pdf_dir_override <- getOption("ecoreview.pdf_dir", NULL)
-      if (!is.null(pdf_dir_override)) {
-        candidate <- file.path(pdf_dir_override, basename(pdf_path))
-        if (file.exists(candidate)) pdf_path <- candidate
-      }
-    }
+    pdf_path <- ecoreview::resolve_pdf_path(
+      stored_path = stored_path,
+      db_conn     = values$db_conn,
+      pdf_dir     = values$pdf_dir %||% getOption("ecoreview.pdf_dir", NULL),
+      user_wd     = getOption("ecoreview.user_working_dir", NULL)
+    )
 
     if (is.null(pdf_path) || !file.exists(pdf_path)) {
       return(shiny::div(style = "padding: 40px; text-align: center;",

@@ -90,3 +90,85 @@ run_app <- function(
 get_ecoreview_option <- function(name, default = NULL) {
   getOption(paste0("ecoreview.", name), default)
 }
+
+#' Find project root by walking up from a starting directory
+#'
+#' Walks up the directory tree from \code{start_dir} until it finds a
+#' directory containing a project marker (\code{.git}, \code{*.Rproj},
+#' \code{DESCRIPTION}, \code{.here}, \code{.Rprofile}). Returns \code{NULL}
+#' if no marker is found before the filesystem root.
+#'
+#' @param start_dir Directory to start from
+#' @return Absolute path of the project root, or NULL
+#' @keywords internal
+find_project_root <- function(start_dir) {
+  markers <- c(".git", ".here", ".Rprofile", "DESCRIPTION")
+  dir <- normalizePath(start_dir, mustWork = FALSE)
+  repeat {
+    if (any(file.exists(file.path(dir, markers))) ||
+        length(list.files(dir, pattern = "\\.Rproj$")) > 0) {
+      return(dir)
+    }
+    parent <- dirname(dir)
+    if (parent == dir) return(NULL)
+    dir <- parent
+  }
+}
+
+#' Resolve a PDF file path using a cascade of fallback strategies
+#'
+#' Given a path as stored in the database, tries in order:
+#' \enumerate{
+#'   \item The stored path as-is
+#'   \item Relative to the directory containing the \code{.db} file
+#'   \item Relative to the project root (found by walking up from the db dir)
+#'   \item Relative to the working directory when \code{run_app()} was called
+#'   \item \code{basename} resolved inside \code{pdf_dir} (explicit override)
+#' }
+#'
+#' @param stored_path File path as stored in the database
+#' @param db_conn Path to the \code{.db} file (used to anchor relative paths)
+#' @param pdf_dir Optional explicit PDF directory override
+#' @param user_wd Working directory captured at \code{run_app()} time
+#' @return Resolved absolute path, or \code{NULL} if not found
+#' @keywords internal
+resolve_pdf_path <- function(stored_path, db_conn, pdf_dir = NULL,
+                             user_wd = NULL) {
+  if (is.null(stored_path) || !nzchar(stored_path)) return(NULL)
+
+  try_path <- function(p) if (!is.null(p) && nzchar(p) && file.exists(p)) p else NULL
+
+  db_dir <- if (!is.null(db_conn) && nzchar(db_conn)) dirname(db_conn) else NULL
+
+  # 1. Explicit pdf_dir override (highest priority — user said exactly where PDFs are)
+  if (!is.null(pdf_dir) && nzchar(pdf_dir)) {
+    p <- try_path(file.path(pdf_dir, basename(stored_path)))
+    if (!is.null(p)) return(normalizePath(p))
+  }
+
+  # 2. As stored
+  if (!is.null(try_path(stored_path))) return(normalizePath(stored_path))
+
+  # 3. Relative to db file location
+  if (!is.null(db_dir)) {
+    p <- try_path(file.path(db_dir, stored_path))
+    if (!is.null(p)) return(normalizePath(p))
+  }
+
+  # 4. Relative to project root (walk up from db dir looking for .git / .Rproj etc.)
+  if (!is.null(db_dir)) {
+    root <- find_project_root(db_dir)
+    if (!is.null(root)) {
+      p <- try_path(file.path(root, stored_path))
+      if (!is.null(p)) return(normalizePath(p))
+    }
+  }
+
+  # 5. Relative to run_app() working directory
+  if (!is.null(user_wd)) {
+    p <- try_path(file.path(user_wd, stored_path))
+    if (!is.null(p)) return(normalizePath(p))
+  }
+
+  NULL
+}

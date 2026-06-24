@@ -1,14 +1,30 @@
 # ecoreview news
 
+## 0.1.22 (2026-06-09)
+
+### Improvements
+
+- **Robust PDF path resolution** (issue #26): the PDF viewer now tries five
+  fallback strategies in order before showing "PDF Not Available":
+  1. Explicit `pdf_dir` override (highest priority — set in the connect modal
+     or via `run_app(pdf_dir = ...)`)
+  2. Stored path as-is
+  3. Stored path relative to the `.db` file's directory
+  4. Stored path relative to the **project root** (found by walking up from
+     the db directory until a `.git`, `.Rproj`, `DESCRIPTION`, or `.here`
+     marker is found)
+  5. Stored path relative to the working directory when `run_app()` was called
+- **PDF Folder field in connect modal**: a Browse button lets users set the
+  PDF directory interactively without restarting the app.
+
+---
+
 ## 0.1.21 (2026-06-09)
 
 ### Improvements
 
-- **`pdf_dir` parameter for `run_app()`** (issue #26): when the `.db` file
-  lives in a different folder from the PDFs, pass `pdf_dir = "/path/to/pdfs"`
-  and the PDF viewer will fall back to looking for the file's basename there
-  if the path stored in the database does not resolve. Stored as
-  `options(ecoreview.pdf_dir)` so the Shiny app can read it without arguments.
+- **`pdf_dir` parameter for `run_app()`** (issue #26): initial implementation
+  — basename fallback only.
 
 ---
 
