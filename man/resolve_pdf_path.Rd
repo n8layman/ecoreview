@@ -28,4 +28,3 @@ Given a path as stored in the database, tries in order:
 \item \code{basename} resolved inside \code{pdf_dir} (explicit override)
 }
 }
-\keyword{internal}

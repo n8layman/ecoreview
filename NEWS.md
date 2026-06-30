@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.24 (2026-06-30)
+
+### Bug fixes
+
+- **`resolve_pdf_path` not exported**: the function was marked `@keywords internal`
+  but called via `ecoreview::` in the app, causing an error on installed builds.
+  Exported properly; `find_project_root` exported as well for consistency.
+
+---
+
 ## 0.1.23 (2026-06-30)
 
 ### Bug fixes

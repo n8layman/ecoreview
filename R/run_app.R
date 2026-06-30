@@ -131,7 +131,7 @@ find_project_root <- function(start_dir) {
 #' @param pdf_dir Optional explicit PDF directory override
 #' @param user_wd Working directory captured at \code{run_app()} time
 #' @return Resolved absolute path, or \code{NULL} if not found
-#' @keywords internal
+#' @export
 resolve_pdf_path <- function(stored_path, db_conn, pdf_dir = NULL,
                              user_wd = NULL) {
   if (is.null(stored_path) || !nzchar(stored_path)) return(NULL)
