@@ -1,5 +1,19 @@
 # ecoreview news
 
+## 0.1.23 (2026-06-30)
+
+### Bug fixes
+
+- **"missing value where TRUE/FALSE needed" when adding records to zero-record documents**
+  (Smithsonian/OHP issue #4): the record-ID renaming loop (triggered when
+  publication year or first author changed) compared `old_id != new_record_id`
+  without guarding against `NA`. User-added rows have `record_id = NA` before
+  their first save; `NA != x` returns `NA`, and `if(NA)` throws. Fixed with
+  `!is.na(old_id) &&` guard. Regression test added at
+  `inst/test_add_record_no_existing.R`.
+
+---
+
 ## 0.1.22 (2026-06-09)
 
 ### Improvements

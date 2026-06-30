@@ -1375,7 +1375,7 @@ server <- function(input, output, session) {
           year_part <- if (!is.na(new_year)) new_year else "NA"
           new_record_id <- paste0(author_part, "_", year_part, "_", combo_num, "_r", record_num)
 
-          if (old_id != new_record_id) {
+          if (!is.na(old_id) && old_id != new_record_id) {
             DBI::dbExecute(conn, "UPDATE records SET record_id = ? WHERE document_id = ? AND record_id = ?",
                           params = list(new_record_id, doc_id_int, old_id))
 
