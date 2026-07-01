@@ -1,15 +1,17 @@
 # ecoreview news
 
-## 0.1.28 (2026-06-30)
+## 0.1.29 (2026-06-30)
 
 ### Improvements
 
 - **Schema migration warning on connect**: when opening a database whose
-  `records.id` column is a plain `INTEGER` (old schema, `pk = 0`), a modal
-  now appears immediately telling the user to run
-  `ecoextract::migrate_ecoextract_database(path)` before continuing.
-  Previously ecoextract emitted a console message only, which was invisible
-  inside the Shiny app.
+  `records.id` column is `INTEGER` (pre-UUID schema), a modal appears on
+  connect. Two severity levels:
+  - `pk = 0` (plain integer, no auto-assign): blocking modal — saves will
+    silently duplicate records on every verify. User must run
+    `ecoextract::migrate_ecoextract_database(path)` before continuing.
+  - `pk = 1` (auto-assign works, but not UUID): dismissible advisory modal
+    — saving is safe but databases cannot be merged until migrated.
 
 ---
 
