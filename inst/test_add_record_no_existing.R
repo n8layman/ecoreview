@@ -401,6 +401,65 @@ check("no duplicate when document_content is NULL",
 
 
 # ============================================================
+# TEST 8: rowid deduplication removes null-id duplicate rows
+# Reproduces Cadhla's scenario: old DB schema without INTEGER PRIMARY KEY
+# allows id=NULL; 27 duplicate rows accumulate; rowid-based DELETE cleans up.
+# ============================================================
+cat("\n=== TEST 8: rowid dedup removes null-id duplicate rows ===\n\n")
+
+db_path_8 <- file.path(tempdir(), "test_dedup_nullid.db")
+if (file.exists(db_path_8)) file.remove(db_path_8)
+
+con8 <- DBI::dbConnect(RSQLite::SQLite(), db_path_8)
+
+# id INTEGER (not PRIMARY KEY) — SQLite preserves NULL, unlike INTEGER PRIMARY KEY
+DBI::dbExecute(con8, "
+  CREATE TABLE records (
+    id INTEGER,
+    document_id INTEGER,
+    record_id TEXT,
+    added_by_user INTEGER DEFAULT 0,
+    deleted_by_user TEXT
+  )
+")
+
+# 27 duplicate rows with NULL id — mirrors Cadhla's DB state
+for (i in seq_len(27)) {
+  DBI::dbExecute(con8,
+    "INSERT INTO records (id, document_id, record_id, added_by_user)
+     VALUES (NULL, 1, 'Diakou_2019_1_r1', 1)"
+  )
+}
+
+# One unrelated record that must not be touched
+DBI::dbExecute(con8,
+  "INSERT INTO records (id, document_id, record_id, added_by_user)
+   VALUES (NULL, 1, 'Smith_2020_1_r1', 1)"
+)
+
+before_count <- DBI::dbGetQuery(con8, "SELECT COUNT(*) AS n FROM records")$n
+check("DB starts with 28 rows (27 duplicates + 1 other)", before_count == 28L)
+check("id column is NULL for all rows",
+      all(is.na(DBI::dbGetQuery(con8, "SELECT id FROM records")$id)))
+
+DBI::dbExecute(con8,
+  "DELETE FROM records WHERE rowid NOT IN (
+     SELECT MIN(rowid) FROM records GROUP BY document_id, record_id
+   )"
+)
+
+after_count <- DBI::dbGetQuery(con8, "SELECT COUNT(*) AS n FROM records")$n
+remaining   <- DBI::dbGetQuery(con8, "SELECT * FROM records")
+DBI::dbDisconnect(con8)
+
+check("2 rows remain after dedup (one per unique record_id)", after_count == 2L)
+check("duplicate record_id reduced to 1 row",
+      sum(remaining$record_id == "Diakou_2019_1_r1") == 1L)
+check("unrelated record_id untouched",
+      sum(remaining$record_id == "Smith_2020_1_r1") == 1L)
+
+
+# ============================================================
 # Summary
 # ============================================================
 cat(sprintf(

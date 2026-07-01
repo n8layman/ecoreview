@@ -17,6 +17,9 @@ create_styled_datatable <- function(data, height = "600px",
     list(target = "cell")
   }
 
+  id_col_idx <- which(names(data) == "id") - 1L
+  id_col_js  <- if (length(id_col_idx) > 0) as.character(id_col_idx) else "-1"
+
   DT::datatable(data,
     extensions = 'Select',
     filter = 'top',
@@ -32,7 +35,8 @@ create_styled_datatable <- function(data, height = "600px",
         className = "dt-nowrap",
         createdCell = DT::JS(
           "function(td, cellData, rowData, row, col) {",
-          "  $(td).css({'max-width': '200px', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});",
+          sprintf("  var maxW = col === %s ? '60px' : '200px';", id_col_js),
+          "  $(td).css({'max-width': maxW, 'overflow': 'hidden', 'text-overflow': 'ellipsis'});",
           "  var text = (cellData !== null && cellData !== undefined) ? String(cellData) : '';",
           "  if (text.length > 0) {",
           "    var sentences = null;",

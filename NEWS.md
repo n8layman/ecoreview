@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.26 (2026-06-30)
+
+### Improvements
+
+- **Narrow `id` column in DataTable**: the `id` column is capped at 60 px with
+  text-overflow ellipsis so it does not dominate the view. All other columns
+  keep the existing 200 px cap. Hover tooltip still shows the full value.
+
+---
+
 ## 0.1.25 (2026-06-30)
 
 ### Bug fixes
