@@ -1,5 +1,17 @@
 # ecoreview news
 
+## 0.1.27 (2026-06-30)
+
+### Improvements
+
+- **UUID-ready id handling**: `get_all_edited_cells()` and
+  `get_restored_interaction_ids()` now initialise with `character(0)` instead
+  of `integer(0)`, and `split_combine.R` accumulates interaction ids into a
+  character vector. Prepares ecoreview for ecoextract's UUID v4 record ids
+  without type-coercion issues.
+
+---
+
 ## 0.1.26 (2026-06-30)
 
 ### Improvements

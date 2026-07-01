@@ -141,7 +141,7 @@ split_db <- function(db_path, n, output_dir = NULL,
       group_doc_ids <- part_doc_lists[[i]]
 
       # Collect interaction ids for this part (for interaction_id-keyed tables)
-      part_interaction_ids <- integer(0)
+      part_interaction_ids <- character(0)
       int_tables <- tables[
         has_doc_id & !has_interaction_id & tables != "documents"
       ]

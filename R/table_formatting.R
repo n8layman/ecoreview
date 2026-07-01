@@ -152,7 +152,11 @@ apply_edited_styling <- function(dt, data, edited_cells) {
 #' @return Dataframe with interaction_id and column_name columns
 #' @export
 get_all_edited_cells <- function(document_id, pending_edits) {
-  all_edited_cells <- data.frame(interaction_id = integer(), column_name = character(), stringsAsFactors = FALSE)
+  all_edited_cells <- data.frame(
+    interaction_id = character(),
+    column_name    = character(),
+    stringsAsFactors = FALSE
+  )
 
   # Add pending edits (filter out system operations)
   if (length(pending_edits) > 0) {
@@ -181,5 +185,5 @@ get_all_edited_cells <- function(document_id, pending_edits) {
 #' @export
 get_restored_interaction_ids <- function(document_id) {
   # For now return empty - would need db_conn parameter
-  return(integer(0))
+  return(character(0))
 }
