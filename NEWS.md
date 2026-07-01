@@ -1,5 +1,20 @@
 # ecoreview news
 
+## 0.1.25 (2026-06-30)
+
+### Bug fixes
+
+- **Row duplication when double-clicking Verify** (Smithsonian/OHP issue #4):
+  after the first verify, `values$original_df` was never updated from its
+  initial 0-row state. Each subsequent verify call saw the user-added row
+  (id = NA) as "added" again and re-inserted it, creating duplicate records.
+  Fixed by reloading `original_df` fresh from the database immediately before
+  each `save_document()` call, so the diff always compares against the true
+  current DB state. Regression test added at
+  `inst/test_add_record_no_existing.R` (test 5b).
+
+---
+
 ## 0.1.24 (2026-06-30)
 
 ### Bug fixes

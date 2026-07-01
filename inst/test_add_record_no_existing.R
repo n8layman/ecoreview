@@ -168,6 +168,58 @@ if ("bat_species_scientific_name" %in% names(saved)) {
 
 
 # ============================================================
+# TEST 4: second verify does not duplicate the row
+# ============================================================
+cat("\n=== TEST 4: second verify does not duplicate ===\n\n")
+
+# Simulate what ecoreview does after first verify: reload from DB
+reloaded <- ecoextract::get_records(doc_id, db_conn = db_path)
+
+check_no_error(
+  "second save_document() (double-click verify) completes without error",
+  ecoextract::save_document(
+    document_id = doc_id,
+    records_df  = reloaded,
+    original_df = reloaded,
+    db_conn     = db_path
+  )
+)
+
+after_second_verify <- ecoextract::get_records(doc_id, db_conn = db_path)
+check("still only 1 record after second verify (no duplicate)",
+      nrow(after_second_verify) == 1L)
+
+
+# ============================================================
+# TEST 5: delete after verify soft-deletes, does not duplicate
+# ============================================================
+cat("\n=== TEST 5: delete after verify removes row, does not duplicate ===\n\n")
+
+# Simulate ecoreview delete: set deleted_by_user on the in-memory row
+deleted_df <- reloaded
+deleted_df$deleted_by_user <- as.character(Sys.time())
+
+# records_df passed to save_document excludes soft-deleted rows
+records_after_delete <- deleted_df[is.na(deleted_df$deleted_by_user), , drop = FALSE]
+
+check_no_error(
+  "save_document() with deleted row completes without error",
+  ecoextract::save_document(
+    document_id = doc_id,
+    records_df  = records_after_delete,
+    original_df = reloaded,
+    db_conn     = db_path
+  )
+)
+
+after_delete <- ecoextract::get_records(doc_id, db_conn = db_path)
+check("record count still 1 after delete verify (not duplicated)",
+      nrow(after_delete) == 1L)
+check("row is marked deleted_by_user",
+      isTRUE(!is.na(after_delete$deleted_by_user[1])))
+
+
+# ============================================================
 # TEST 3: record-ID renaming loop with NA old_id does not throw
 # (ecoreview Bug 1 fix — inline simulation of the app.R loop)
 # ============================================================
@@ -209,6 +261,143 @@ check("existing record_id was updated",
 
 check("NA record_id was left untouched",
       isTRUE(is.na(mock_df$record_id[2])))
+
+
+# ============================================================
+# TEST 5b: delete using stale in-memory data (id=NA) after first verify
+# Simulates the user deleting immediately before the reload updates the UI.
+# The stale records_df has the row with id=NA and deleted_by_user set.
+# ============================================================
+cat("\n=== TEST 5b: delete with stale id=NA data does not duplicate ===\n\n")
+
+db_path_5b <- file.path(tempdir(), "test_stale_delete.db")
+if (file.exists(db_path_5b)) file.remove(db_path_5b)
+doc_id_5b   <- make_empty_doc_db(db_path_5b)
+orig_5b     <- ecoextract::get_records(doc_id_5b, db_conn = db_path_5b)
+recs_5b     <- make_user_added_row(orig_5b, doc_id_5b)
+
+# First verify — row gets inserted
+ecoextract::save_document(
+  document_id = doc_id_5b,
+  records_df  = recs_5b,
+  original_df = orig_5b,
+  db_conn     = db_path_5b
+)
+
+# Simulate stale state: user deletes using the pre-reload in-memory data (id=NA)
+stale_df <- recs_5b
+stale_df$deleted_by_user <- as.character(Sys.time())
+stale_records_after_delete <- stale_df[is.na(stale_df$deleted_by_user), , drop = FALSE]
+
+# The fix: reload original_df fresh from DB before saving (mirrors app.R fix)
+fresh_original_5b <- ecoextract::get_records(doc_id_5b, db_conn = db_path_5b)
+
+check_no_error(
+  "second verify (delete via stale id=NA data) does not error",
+  ecoextract::save_document(
+    document_id = doc_id_5b,
+    records_df  = stale_records_after_delete,
+    original_df = fresh_original_5b,
+    db_conn     = db_path_5b
+  )
+)
+
+after_stale_delete <- ecoextract::get_records(doc_id_5b, db_conn = db_path_5b)
+check("no duplicate rows after stale-data delete verify",
+      nrow(after_stale_delete) == 1L)
+check("row is marked deleted after stale-data delete verify",
+      isTRUE(!is.na(after_stale_delete$deleted_by_user[1])))
+
+
+# ============================================================
+# TEST 6: DB in different directory from PDFs (path resolution unaffected)
+# ============================================================
+cat("\n=== TEST 6: DB in different dir from PDFs does not break add/verify ===\n\n")
+
+db_path2 <- file.path(tempdir(), "subdir_db", "test2.db")
+dir.create(dirname(db_path2), showWarnings = FALSE)
+doc_id2 <- make_empty_doc_db(db_path2)
+
+orig2    <- ecoextract::get_records(doc_id2, db_conn = db_path2)
+recs2    <- make_user_added_row(orig2, doc_id2)
+
+check_no_error(
+  "save_document() works when DB is in a subdirectory",
+  ecoextract::save_document(
+    document_id = doc_id2,
+    records_df  = recs2,
+    original_df = orig2,
+    db_conn     = db_path2
+  )
+)
+
+saved2 <- ecoextract::get_records(doc_id2, db_conn = db_path2)
+check("row saved correctly with DB in separate directory",
+      nrow(saved2) == 1L)
+
+reloaded2 <- ecoextract::get_records(doc_id2, db_conn = db_path2)
+check_no_error(
+  "second verify (double-click) does not error with DB in separate directory",
+  ecoextract::save_document(
+    document_id = doc_id2,
+    records_df  = reloaded2,
+    original_df = reloaded2,
+    db_conn     = db_path2
+  )
+)
+check("no duplicate with DB in separate directory",
+      nrow(ecoextract::get_records(doc_id2, db_conn = db_path2)) == 1L)
+
+
+# ============================================================
+# TEST 7: NULL document_content does not break add/verify round-trip
+# ============================================================
+cat("\n=== TEST 7: NULL document_content does not break add/verify ===\n\n")
+
+db_path3 <- file.path(tempdir(), "test_null_content.db")
+if (file.exists(db_path3)) file.remove(db_path3)
+ecoextract::init_ecoextract_database(db_path3)
+con3 <- DBI::dbConnect(RSQLite::SQLite(), db_path3)
+DBI::dbExecute(con3,
+  "INSERT INTO documents
+     (file_name, file_path, file_hash, file_size, upload_timestamp,
+      first_author_lastname, publication_year, document_content)
+   VALUES
+     ('null_content.pdf', 'null_content.pdf', 'def456', 0, datetime('now'),
+      'Smith', 2020, NULL)"
+)
+doc_id3 <- DBI::dbGetQuery(con3, "SELECT document_id FROM documents LIMIT 1")$document_id
+DBI::dbDisconnect(con3)
+
+orig3 <- ecoextract::get_records(doc_id3, db_conn = db_path3)
+recs3 <- make_user_added_row(orig3, doc_id3)
+
+check_no_error(
+  "save_document() succeeds when document_content is NULL",
+  ecoextract::save_document(
+    document_id = doc_id3,
+    records_df  = recs3,
+    original_df = orig3,
+    db_conn     = db_path3
+  )
+)
+
+saved3    <- ecoextract::get_records(doc_id3, db_conn = db_path3)
+reloaded3 <- saved3
+
+check("row saved when document_content is NULL", nrow(saved3) == 1L)
+
+check_no_error(
+  "second verify does not error when document_content is NULL",
+  ecoextract::save_document(
+    document_id = doc_id3,
+    records_df  = reloaded3,
+    original_df = reloaded3,
+    db_conn     = db_path3
+  )
+)
+check("no duplicate when document_content is NULL",
+      nrow(ecoextract::get_records(doc_id3, db_conn = db_path3)) == 1L)
 
 
 # ============================================================

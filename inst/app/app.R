@@ -1397,6 +1397,14 @@ server <- function(input, output, session) {
         issue = if (!is.na(issue) && nchar(issue) > 0) issue else NA
       )
 
+      # Always diff against a fresh DB read so stale in-memory original_df
+      # (e.g. after a previous verify or a reactive reset) cannot cause missed
+      # deletes or duplicate inserts.
+      fresh_original_df <- tryCatch(
+        ecoextract::get_records(doc_id_int, db_conn = conn),
+        error = function(e) values$original_df
+      )
+
       do.call(ecoextract::save_document, c(
         list(
           document_id = doc_id_int,
@@ -1404,7 +1412,7 @@ server <- function(input, output, session) {
             df <- values$extracted_df %||% data.frame()
             if ("deleted_by_user" %in% names(df)) df[is.na(df$deleted_by_user), , drop = FALSE] else df
           },
-          original_df = values$original_df,
+          original_df = fresh_original_df,
           db_conn = conn
         ),
         doc_metadata
