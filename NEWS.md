@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.30 (2026-07-01)
+
+### Improvements
+
+- **Package versions in title bar**: the header now shows both
+  `ecoreview vX.Y.Z | ecoextract vX.Y.Z` so users can report exact
+  versions without digging through R session info.
+
+---
+
 ## 0.1.29 (2026-06-30)
 
 ### Improvements

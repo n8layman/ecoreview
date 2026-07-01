@@ -65,7 +65,12 @@ ui <- shiny::fluidPage(
       shiny::div(style = "display: flex; align-items: center; gap: 12px;",
         shiny::span(
           style = "font-size: 12px; color: #adb5bd;",
-          paste0("v", tryCatch(as.character(packageVersion("ecoreview")), error = function(e) ""))
+          paste0(
+            "ecoreview v",
+            tryCatch(as.character(packageVersion("ecoreview")), error = function(e) "?"),
+            " | ecoextract v",
+            tryCatch(as.character(packageVersion("ecoextract")), error = function(e) "?")
+          )
         ),
         if (!is.null(github_url)) {
           shiny::tags$a(href = github_url, target = "_blank",
