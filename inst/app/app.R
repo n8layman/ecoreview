@@ -808,6 +808,37 @@ server <- function(input, output, session) {
   output$dbConnected <- shiny::reactive(!is.null(values$db_conn) && file.exists(values$db_conn))
   shiny::outputOptions(output, "dbConnected", suspendWhenHidden = FALSE)
 
+  # Warn if the connected DB uses the old schema (id INTEGER, pk=0).
+  # ecoextract's migrate_database() must be run before the app can be used safely.
+  shiny::observeEvent(values$db_conn, {
+    shiny::req(values$db_conn, file.exists(values$db_conn))
+    tryCatch({
+      con <- DBI::dbConnect(RSQLite::SQLite(), values$db_conn)
+      on.exit(DBI::dbDisconnect(con), add = TRUE)
+      if (DBI::dbExistsTable(con, "records")) {
+        info <- DBI::dbGetQuery(con, "PRAGMA table_info(records)")
+        id_row <- info[info$name == "id", ]
+        if (nrow(id_row) > 0 && id_row$pk == 0) {
+          shiny::showModal(shiny::modalDialog(
+            title = "Schema migration required",
+            shiny::p(
+              "This database was created with an older version of ecoextract.",
+              "The ", shiny::code("records"), " table uses a plain integer ",
+              shiny::code("id"), " column that is not assigned on save, which ",
+              "can cause duplicate records."
+            ),
+            shiny::p(
+              "Please run ", shiny::code("ecoextract::migrate_ecoextract_database(path)"),
+              " in R to upgrade the schema before continuing."
+            ),
+            footer = shiny::modalButton("Dismiss"),
+            easyClose = TRUE
+          ))
+        }
+      }
+    }, error = function(e) NULL)
+  }, ignoreNULL = TRUE)
+
   # Create reactive output for UI conditionals
   output$documentSelected <- shiny::reactive(!is.null(values$document_id) && values$document_id != "")
   shiny::outputOptions(output, "documentSelected", suspendWhenHidden = FALSE)

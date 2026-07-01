@@ -1,5 +1,18 @@
 # ecoreview news
 
+## 0.1.28 (2026-06-30)
+
+### Improvements
+
+- **Schema migration warning on connect**: when opening a database whose
+  `records.id` column is a plain `INTEGER` (old schema, `pk = 0`), a modal
+  now appears immediately telling the user to run
+  `ecoextract::migrate_ecoextract_database(path)` before continuing.
+  Previously ecoextract emitted a console message only, which was invisible
+  inside the Shiny app.
+
+---
+
 ## 0.1.27 (2026-06-30)
 
 ### Improvements
