@@ -1581,7 +1581,8 @@ server <- function(input, output, session) {
         dplyr::left_join(
           documents |> dplyr::select(dplyr::any_of(c("document_id", "file_name", "file_path", "reviewed_at"))),
           by = "document_id"
-        )
+        ) |>
+        dplyr::arrange(document_id, record_id)
 
       readr::write_csv(export_data, file)
     },

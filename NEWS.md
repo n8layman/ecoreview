@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.31 (2026-07-02)
+
+### Bug fixes
+
+- **CSV export groups rows by document**: records were exported in insertion
+  order, so manually-added rows (inserted after initial extraction) appeared
+  at the end of the file rather than alongside other records from the same
+  paper. Export now sorts by `document_id` then `record_id`.
+
+---
+
 ## 0.1.30 (2026-07-01)
 
 ### Improvements
