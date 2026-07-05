@@ -19,24 +19,26 @@
 #' @param prefix Filename prefix for part files. Defaults to the source
 #'   filename (without extension). Parts are named
 #'   `{prefix}_part_01.db`, `{prefix}_part_02.db`, etc.
-#' @param seed Optional integer seed for reproducible random assignment of
-#'   documents to parts. If `NULL` (default), documents are assigned in
-#'   ascending `document_id` order.
+#' @param random Logical. If `FALSE` (default), documents are assigned in
+#'   ascending `document_id` order so each part gets a consecutive block of
+#'   IDs. If `TRUE`, documents are shuffled randomly before assignment.
+#' @param seed Optional integer seed for reproducible random assignment when
+#'   `random = TRUE`. Ignored when `random = FALSE`.
 #' @return Character vector of paths to the created part databases
 #'   (invisibly).
 #' @export
 #'
 #' @examples
 #' \dontrun{
-#' # Split into 4 equal parts for 4 reviewers
+#' # Sequential split (default): part 1 gets lowest IDs, part 2 next block, etc.
 #' parts <- split_db("extractions.db", n = 4)
 #'
-#' # Randomise assignment with a reproducible seed
-#' parts <- split_db("extractions.db", n = 4, seed = 42,
+#' # Random split with a reproducible seed
+#' parts <- split_db("extractions.db", n = 4, random = TRUE, seed = 42,
 #'                   output_dir = "review_parts")
 #' }
 split_db <- function(db_path, n, output_dir = NULL,
-                     prefix = NULL, seed = NULL) {
+                     prefix = NULL, random = FALSE, seed = NULL) {
 
   db_path <- normalizePath(db_path, mustWork = TRUE)
 
@@ -97,8 +99,8 @@ split_db <- function(db_path, n, output_dir = NULL,
   }
 
   # --- Assign documents to parts ---
-  if (!is.null(seed)) {
-    set.seed(seed)
+  if (isTRUE(random)) {
+    if (!is.null(seed)) set.seed(seed)
     doc_ids <- sample(doc_ids)
   }
 
