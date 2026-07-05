@@ -437,6 +437,12 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
         shiny::div(
           style = "margin-top: -6px; margin-bottom: 4px; font-size: 11px; color: #666; user-select: text; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
           shiny::textOutput("current_doc_filename_display", inline = TRUE)
+        ),
+        shiny::div(
+          style = "margin-top: 2px;",
+          shiny::checkboxInput("show_doc_ids",
+            shiny::span("Show document IDs", style = "font-size: 11px; font-weight: normal;"),
+            value = FALSE)
         )
       ),
       shiny::column(3,
@@ -1051,7 +1057,7 @@ server <- function(input, output, session) {
   # values$document_id and input$document_select here do not create reactive
   # dependencies and cannot cause feedback loops.
   shiny::observeEvent(
-    list(all_documents(), input$show_unreviewed_only),
+    list(all_documents(), input$show_unreviewed_only, input$show_doc_ids),
     ignoreNULL = FALSE,
     {
       all_docs  <- all_documents()
@@ -1086,10 +1092,14 @@ server <- function(input, output, session) {
         values$doc_metadata <- NULL
         values$doc_metadata_original <- NULL
       } else {
-        display_names <- sapply(seq_len(nrow(docs)), function(i) {
-          status <- if (has_reviewed_at && !is.na(docs$reviewed_at[i])) "\u2713 " else ""
-          paste0(status, docs$file_name[i])
-        })
+        display_names <- if (isTRUE(input$show_doc_ids)) {
+          as.character(docs$document_id)
+        } else {
+          sapply(seq_len(nrow(docs)), function(i) {
+            status <- if (has_reviewed_at && !is.na(docs$reviewed_at[i])) "\u2713 " else ""
+            paste0(status, docs$file_name[i])
+          })
+        }
         choices <- stats::setNames(docs$document_id, display_names)
 
         doc_ids_char    <- as.character(docs$document_id)

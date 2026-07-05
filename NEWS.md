@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.32 (2026-07-05)
+
+### Improvements
+
+- **Toggle document IDs in dropdown**: a "Show document IDs" checkbox below the
+  document selector switches the dropdown labels between filenames and raw
+  `document_id` integers, making it easy to navigate directly to a known ID.
+
+---
+
 ## 0.1.31 (2026-07-02)
 
 ### Bug fixes
