@@ -1074,7 +1074,11 @@ server <- function(input, output, session) {
         } else {
           all_docs
         }
-        docs <- dplyr::arrange(docs, file_name)
+        docs <- if (isTRUE(input$show_doc_ids)) {
+          dplyr::arrange(docs, document_id)
+        } else {
+          dplyr::arrange(docs, file_name)
+        }
       }
 
       if (is.null(docs) || nrow(docs) == 0) {

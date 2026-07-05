@@ -1,5 +1,15 @@
 # ecoreview news
 
+## 0.1.33 (2026-07-05)
+
+### Improvements
+
+- **Document ID mode sorts numerically**: when "Show document IDs" is checked,
+  the dropdown sorts by `document_id` (numeric) instead of filename, so IDs
+  appear in order.
+
+---
+
 ## 0.1.32 (2026-07-05)
 
 ### Improvements
