@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.34 (2026-07-05)
+
+### Improvements
+
+- **`split_db` uses sequential document_id order**: documents are now split in
+  ascending `document_id` order by default, so part 1 always gets the lowest
+  IDs, part 2 the next block, etc. Previously the split followed insertion
+  order (unpredictable). Random assignment via `seed` still works as before.
+
+---
+
 ## 0.1.33 (2026-07-05)
 
 ### Improvements

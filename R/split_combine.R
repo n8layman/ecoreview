@@ -21,7 +21,7 @@
 #'   `{prefix}_part_01.db`, `{prefix}_part_02.db`, etc.
 #' @param seed Optional integer seed for reproducible random assignment of
 #'   documents to parts. If `NULL` (default), documents are assigned in
-#'   their existing order.
+#'   ascending `document_id` order.
 #' @return Character vector of paths to the created part databases
 #'   (invisibly).
 #' @export
@@ -84,7 +84,7 @@ split_db <- function(db_path, n, output_dir = NULL,
   }
 
   doc_ids <- DBI::dbGetQuery(
-    con, "SELECT document_id FROM documents"
+    con, "SELECT document_id FROM documents ORDER BY document_id"
   )$document_id
   n_docs <- length(doc_ids)
 
