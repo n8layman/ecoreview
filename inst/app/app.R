@@ -462,7 +462,10 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
           shiny::div(style = "display: flex; justify-content: space-between; align-items: center;",
             shiny::div(style = "display: flex; gap: 12px; align-items: center;",
               shiny::uiOutput("dbNameBtn"),
-              shiny::downloadButton("exportDbBtn", "Export CSV",
+              shiny::downloadButton("exportRecordsBtn", "Export Records CSV",
+                           class = "btn-sm btn-outline-secondary",
+                           style = "font-size: 12px; padding: 2px 8px;"),
+              shiny::downloadButton("exportDocsBtn", "Export Documents CSV",
                            class = "btn-sm btn-outline-secondary",
                            style = "font-size: 12px; padding: 2px 8px;"),
               shiny::downloadButton("downloadDbBtn", "Save Database",
@@ -1577,10 +1580,10 @@ server <- function(input, output, session) {
     }, once = TRUE)
   }, ignoreNULL = TRUE)
 
-  # Database export handler - exports all records joined with document metadata to CSV
-  output$exportDbBtn <- shiny::downloadHandler(
+  # Records CSV export - all records joined with document metadata
+  output$exportRecordsBtn <- shiny::downloadHandler(
     filename = function() {
-      paste0(export_prefix, "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
+      paste0(export_prefix, "_records_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
     },
     content = function(file) {
       shiny::req(values$db_conn)
@@ -1599,6 +1602,19 @@ server <- function(input, output, session) {
         dplyr::arrange(document_id, record_id)
 
       readr::write_csv(export_data, file)
+    },
+    contentType = "text/csv"
+  )
+
+  # Documents CSV export - documents table only
+  output$exportDocsBtn <- shiny::downloadHandler(
+    filename = function() {
+      paste0(export_prefix, "_documents_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
+    },
+    content = function(file) {
+      shiny::req(values$db_conn)
+      documents <- ecoextract::get_documents(db_conn = values$db_conn)
+      readr::write_csv(documents, file)
     },
     contentType = "text/csv"
   )

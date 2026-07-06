@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.36 (2026-07-05)
+
+### Improvements
+
+- **Separate CSV export buttons**: the single "Export CSV" button is now two
+  buttons -- "Export Records CSV" (records joined with document metadata,
+  sorted by document_id/record_id) and "Export Documents CSV" (documents
+  table only via `ecoextract::get_documents()`).
+
+---
+
 ## 0.1.35 (2026-07-05)
 
 ### Improvements
