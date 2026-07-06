@@ -1580,7 +1580,12 @@ server <- function(input, output, session) {
     }, once = TRUE)
   }, ignoreNULL = TRUE)
 
-  # Records CSV export - all records joined with document metadata
+  .wide_record_cols <- c("all_supporting_source_sentences", "extraction_reasoning",
+                         "refinement_reasoning")
+  .wide_doc_cols    <- c("document_content", "ocr_images", "bibliography",
+                         "extraction_reasoning", "refinement_reasoning")
+
+  # Records CSV export - all records joined with document metadata, wide columns dropped
   output$exportRecordsBtn <- shiny::downloadHandler(
     filename = function() {
       paste0(export_prefix, "_records_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
@@ -1595,6 +1600,7 @@ server <- function(input, output, session) {
       documents <- ecoextract::get_documents(db_conn = values$db_conn)
 
       export_data <- records |>
+        dplyr::select(-dplyr::any_of(.wide_record_cols)) |>
         dplyr::left_join(
           documents |> dplyr::select(dplyr::any_of(c("document_id", "file_name", "file_path", "reviewed_at"))),
           by = "document_id"
@@ -1606,14 +1612,15 @@ server <- function(input, output, session) {
     contentType = "text/csv"
   )
 
-  # Documents CSV export - documents table only
+  # Documents CSV export - documents table only, wide columns dropped
   output$exportDocsBtn <- shiny::downloadHandler(
     filename = function() {
       paste0(export_prefix, "_documents_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
     },
     content = function(file) {
       shiny::req(values$db_conn)
-      documents <- ecoextract::get_documents(db_conn = values$db_conn)
+      documents <- ecoextract::get_documents(db_conn = values$db_conn) |>
+        dplyr::select(-dplyr::any_of(.wide_doc_cols))
       readr::write_csv(documents, file)
     },
     contentType = "text/csv"

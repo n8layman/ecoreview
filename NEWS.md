@@ -1,5 +1,19 @@
 # ecoreview news
 
+## 0.1.37 (2026-07-05)
+
+### Improvements
+
+- **CSV exports strip wide columns**: both export buttons now drop columns that
+  make spreadsheets unreadable. Records export drops
+  `all_supporting_source_sentences`, `extraction_reasoning`, and
+  `refinement_reasoning`. Documents export drops `document_content`,
+  `ocr_images`, `bibliography`, `extraction_reasoning`, and
+  `refinement_reasoning`. Missing columns are silently ignored via
+  `dplyr::any_of()`.
+
+---
+
 ## 0.1.36 (2026-07-05)
 
 ### Improvements
