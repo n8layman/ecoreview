@@ -1582,8 +1582,6 @@ server <- function(input, output, session) {
 
   .wide_record_cols <- c("all_supporting_source_sentences", "extraction_reasoning",
                          "refinement_reasoning")
-  .wide_doc_cols    <- c("document_content", "ocr_images", "bibliography",
-                         "extraction_reasoning", "refinement_reasoning")
 
   # Records CSV export - all records joined with document metadata, wide columns dropped
   output$exportRecordsBtn <- shiny::downloadHandler(
@@ -1612,7 +1610,7 @@ server <- function(input, output, session) {
     contentType = "text/csv"
   )
 
-  # Documents CSV export - documents table only, wide columns dropped
+  # Documents CSV export - key bibliographic fields and pipeline statuses only
   output$exportDocsBtn <- shiny::downloadHandler(
     filename = function() {
       paste0(export_prefix, "_documents_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
@@ -1620,7 +1618,10 @@ server <- function(input, output, session) {
     content = function(file) {
       shiny::req(values$db_conn)
       documents <- ecoextract::get_documents(db_conn = values$db_conn) |>
-        dplyr::select(-dplyr::any_of(.wide_doc_cols))
+        dplyr::select(dplyr::any_of(c(
+          "document_id", "file_name", "first_author_lastname", "publication_year", "title",
+          "ocr_status", "metadata_status", "extraction_status", "refinement_status"
+        )))
       readr::write_csv(documents, file)
     },
     contentType = "text/csv"
