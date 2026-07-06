@@ -1127,7 +1127,7 @@ server <- function(input, output, session) {
 
         shiny::updateSelectInput(session, "document_select", choices = choices, selected = selected)
 
-        if (need_force_load) {
+        if (isTRUE(need_force_load)) {
           values$document_id <- selected
 
           doc_id_int <- as.integer(selected)
@@ -1135,8 +1135,9 @@ server <- function(input, output, session) {
           if (nrow(doc_info) > 0) {
             values$doc_metadata <- doc_info
             values$doc_metadata_original <- doc_info
-            shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "")
+            shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "" |> (\(x) if (is.na(x)) "" else x)())
             authors_val <- doc_info$authors[1] %||% ""
+            if (is.na(authors_val)) authors_val <- ""
             if (nchar(authors_val) > 0 && grepl("^\\[", authors_val)) {
               authors_val <- tryCatch(paste(jsonlite::fromJSON(authors_val), collapse = "; "), error = function(e) authors_val)
             }

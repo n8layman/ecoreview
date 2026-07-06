@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.39 (2026-07-06)
+
+### Bug fixes
+
+- **Crash on startup with certain databases**: "missing value where TRUE/FALSE
+  needed" in the document-selector observer when `need_force_load` evaluated to
+  `NA` (triggered when a document's `document_id` was `NA`, making the `==`
+  comparison return `NA`). Guarded with `isTRUE()`.
+
+---
+
 ## 0.1.38 (2026-07-05)
 
 ### Improvements
