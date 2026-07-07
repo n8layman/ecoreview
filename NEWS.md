@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.40 (2026-07-06)
+
+### Improvements
+
+- **Document count badge uses unique non-NULL document IDs**: total and
+  unreviewed counts now count distinct `document_id` values, excluding NULLs.
+  Previously `nrow()` was used, so NULL-id rows (from malformed databases)
+  inflated both counts.
+
+---
+
 ## 0.1.39 (2026-07-06)
 
 ### Bug fixes

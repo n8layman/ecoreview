@@ -1172,9 +1172,12 @@ server <- function(input, output, session) {
     if (is.null(docs) || nrow(docs) == 0) {
       return(shiny::div(style = "color: #6c757d;", "No documents"))
     }
-    total <- nrow(docs)
+    valid_ids <- unique(docs$document_id[!is.na(docs$document_id)])
+    total <- length(valid_ids)
     has_reviewed_at <- "reviewed_at" %in% colnames(docs)
-    unreviewed <- if (has_reviewed_at) sum(is.na(docs$reviewed_at)) else total
+    unreviewed <- if (has_reviewed_at) {
+      length(unique(docs$document_id[!is.na(docs$document_id) & is.na(docs$reviewed_at)]))
+    } else total
     shiny::div(style = "color: #6c757d; font-size: 0.9em;",
       shiny::strong(unreviewed), " of ", shiny::strong(total), " unreviewed"
     )
