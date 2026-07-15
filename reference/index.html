@@ -3,7 +3,7 @@
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-primary" data-bs-theme="dark" aria-label="Site navigation"><div class="container">
 
     <a class="navbar-brand me-2" href="../index.html">ecoreview</a>
 
@@ -15,14 +15,11 @@
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/accuracy.html">Accuracy Metrics</a></li>
-    <li><a class="dropdown-item" href="../articles/ecoreview-workflow.html">EcoReview: Getting Started</a></li>
-    <li><a class="dropdown-item" href="../articles/reviewing-extraction-output.html">Reviewing Extraction Output</a></li>
-  </ul></li>
-<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../index.html" aria-label="Home"><span class="fa fa-home"></span></a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/ecoreview-workflow.html">Guide</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/reviewing-extraction-output.html">Reviewing</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/accuracy.html">Accuracy</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/n8layman/ecoreview/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -38,9 +35,9 @@
     </div>
 
     <div class="section level2">
-      <h2 id="all-functions">All functions<a class="anchor" aria-label="anchor" href="#all-functions"></a></h2>
+      <h2 id="app">App<a class="anchor" aria-label="anchor" href="#app"></a></h2>
 
-
+      <div class="section-desc"><p>Launch and configure the review application</p></div>
 
 
     </div><div class="section level2">
@@ -50,16 +47,56 @@
 
       <dl><dt>
 
+          <code><a href="run_app.html">run_app()</a></code>
+
+        </dt>
+        <dd>Run the ecoreview Shiny application</dd>
+      </dl></div><div class="section level2">
+      <h2 id="database-splitting">Database Splitting<a class="anchor" aria-label="anchor" href="#database-splitting"></a></h2>
+
+      <div class="section-desc"><p>Distribute and recombine databases for parallel review</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="split_db.html">split_db()</a></code>
+
+        </dt>
+        <dd>Split a database into roughly equal pieces for parallel review</dd>
+      </dl><dl><dt>
+
+          <code><a href="combine_db.html">combine_db()</a></code>
+
+        </dt>
+        <dd>Combine part databases back into a single database</dd>
+      </dl></div><div class="section level2">
+      <h2 id="table-display">Table Display<a class="anchor" aria-label="anchor" href="#table-display"></a></h2>
+
+      <div class="section-desc"><p>DataTable formatting and styling utilities</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="create_styled_datatable.html">create_styled_datatable()</a></code>
+
+        </dt>
+        <dd>Create a styled DataTable with consistent options</dd>
+      </dl><dl><dt>
+
           <code><a href="apply_deleted_row_styling.html">apply_deleted_row_styling()</a></code>
 
         </dt>
         <dd>Apply deleted row styling to DataTable</dd>
-      </dl><dl><dt>
-
-          <code><a href="apply_edited_styling.html">apply_edited_styling()</a></code>
-
-        </dt>
-        <dd>Apply edited cell styling to DataTable</dd>
       </dl><dl><dt>
 
           <code><a href="apply_restored_row_styling.html">apply_restored_row_styling()</a></code>
@@ -68,58 +105,10 @@
         <dd>Apply restored interaction styling to DataTable</dd>
       </dl><dl><dt>
 
-          <code><a href="build_evidence_index.html">build_evidence_index()</a></code>
+          <code><a href="apply_edited_styling.html">apply_edited_styling()</a></code>
 
         </dt>
-        <dd>Build a pre-injected evidence index for the OCR viewer</dd>
-      </dl><dl><dt>
-
-          <code><a href="cleanup_temp_files.html">cleanup_temp_files()</a></code>
-
-        </dt>
-        <dd>Clean up old temporary files</dd>
-      </dl><dl><dt>
-
-          <code><a href="collect_benchmark_results.html">collect_benchmark_results()</a></code>
-
-        </dt>
-        <dd>Collect all benchmark trial results into a single CSV</dd>
-      </dl><dl><dt>
-
-          <code><a href="combine_db.html">combine_db()</a></code>
-
-        </dt>
-        <dd>Combine part databases back into a single database</dd>
-      </dl><dl><dt>
-
-          <code><a href="compute_duplicate_rate.html">compute_duplicate_rate()</a></code>
-
-        </dt>
-        <dd>Compute duplicate rate across benchmark trials</dd>
-      </dl><dl><dt>
-
-          <code><a href="convert_edit_value.html">convert_edit_value()</a></code>
-
-        </dt>
-        <dd>Convert edited cell value to the appropriate type</dd>
-      </dl><dl><dt>
-
-          <code><a href="create_styled_datatable.html">create_styled_datatable()</a></code>
-
-        </dt>
-        <dd>Create a styled DataTable with consistent options</dd>
-      </dl><dl><dt>
-
-          <code><a href="create_temp_pdf_for_display.html">create_temp_pdf_for_display()</a></code>
-
-        </dt>
-        <dd>Create temporary PDF file for web display</dd>
-      </dl><dl><dt>
-
-          <code><a href="extract_sentences_from_markdown.html">extract_sentences_from_markdown()</a></code>
-
-        </dt>
-        <dd>Extract sentences from HTML or markdown text</dd>
+        <dd>Apply edited cell styling to DataTable</dd>
       </dl><dl><dt>
 
           <code><a href="get_all_edited_cells.html">get_all_edited_cells()</a></code>
@@ -128,10 +117,33 @@
         <dd>Get all edited cells for styling</dd>
       </dl><dl><dt>
 
-          <code><a href="get_audit_trail.html">get_audit_trail()</a></code>
+          <code><a href="get_restored_interaction_ids.html">get_restored_interaction_ids()</a></code>
 
         </dt>
-        <dd>Get audit trail for document</dd>
+        <dd>Get restored interaction IDs for styling</dd>
+      </dl></div><div class="section level2">
+      <h2 id="ocr-and-evidence">OCR and Evidence<a class="anchor" aria-label="anchor" href="#ocr-and-evidence"></a></h2>
+
+      <div class="section-desc"><p>Render OCR content and highlight supporting evidence</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="render_tensorlake_html.html">render_tensorlake_html()</a></code>
+
+        </dt>
+        <dd>Render tensorlake JSON content to HTML for Shiny display</dd>
+      </dl><dl><dt>
+
+          <code><a href="build_evidence_index.html">build_evidence_index()</a></code>
+
+        </dt>
+        <dd>Build a pre-injected evidence index for the OCR viewer</dd>
       </dl><dl><dt>
 
           <code><a href="get_highlight_matches.html">get_highlight_matches()</a></code>
@@ -140,10 +152,22 @@
         <dd>Get highlight match segments for client-side marking</dd>
       </dl><dl><dt>
 
-          <code><a href="get_restored_interaction_ids.html">get_restored_interaction_ids()</a></code>
+          <code><a href="find_best_match_in_html.html">find_best_match_in_html()</a></code>
 
         </dt>
-        <dd>Get restored interaction IDs for styling</dd>
+        <dd>Find a matching span in plain text for an evidence fragment</dd>
+      </dl><dl><dt>
+
+          <code><a href="find_sentence_matches.html">find_sentence_matches()</a></code>
+
+        </dt>
+        <dd>Find sentence matches above threshold</dd>
+      </dl><dl><dt>
+
+          <code><a href="html_to_plain_text.html">html_to_plain_text()</a></code>
+
+        </dt>
+        <dd>Strip HTML tags and decode entities to plain text</dd>
       </dl><dl><dt>
 
           <code><a href="highlight_similar_text.html">highlight_similar_text()</a></code>
@@ -152,17 +176,40 @@
         <dd>Highlight similar text using direct text matching</dd>
       </dl><dl><dt>
 
-          <code><a href="process_delete_with_renumbering.html">process_delete_with_renumbering()</a></code>
+          <code><a href="reconstruct_text_with_highlights.html">reconstruct_text_with_highlights()</a></code>
 
         </dt>
-        <dd>Process delete with renumbering</dd>
+        <dd>Reconstruct text with highlights applied</dd>
       </dl><dl><dt>
 
-          <code><a href="render_tensorlake_html.html">render_tensorlake_html()</a></code>
+          <code><a href="extract_sentences_from_markdown.html">extract_sentences_from_markdown()</a></code>
 
         </dt>
-        <dd>Render tensorlake JSON content to HTML for Shiny display</dd>
+        <dd>Extract sentences from HTML or markdown text</dd>
       </dl><dl><dt>
+
+          <code><a href="calculate_sentence_similarities.html">calculate_sentence_similarities()</a></code>
+
+        </dt>
+        <dd>Calculate similarities between target sentence and candidate sentences</dd>
+      </dl><dl><dt>
+
+          <code><a href="clean_sentence_for_comparison.html">clean_sentence_for_comparison()</a></code>
+
+        </dt>
+        <dd>Clean sentence for comparison by removing markdown and normalizing whitespace</dd>
+      </dl></div><div class="section level2">
+      <h2 id="file-handling">File Handling<a class="anchor" aria-label="anchor" href="#file-handling"></a></h2>
+
+      <div class="section-desc"><p>PDF path resolution and temporary file management</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
 
           <code><a href="resolve_pdf_path.html">resolve_pdf_path()</a></code>
 
@@ -170,24 +217,106 @@
         <dd>Resolve a PDF file path using a cascade of fallback strategies</dd>
       </dl><dl><dt>
 
-          <code><a href="run_app.html">run_app()</a></code>
+          <code><a href="find_project_root.html">find_project_root()</a></code>
 
         </dt>
-        <dd>Run the ecoreview Shiny application</dd>
+        <dd>Find project root by walking up from a starting directory</dd>
       </dl><dl><dt>
 
-          <code><a href="split_db.html">split_db()</a></code>
+          <code><a href="create_temp_pdf_for_display.html">create_temp_pdf_for_display()</a></code>
 
         </dt>
-        <dd>Split a database into roughly equal pieces for parallel review</dd>
+        <dd>Create temporary PDF file for web display</dd>
+      </dl><dl><dt>
+
+          <code><a href="cleanup_temp_files.html">cleanup_temp_files()</a></code>
+
+        </dt>
+        <dd>Clean up old temporary files</dd>
+      </dl></div><div class="section level2">
+      <h2 id="audit-trail">Audit Trail<a class="anchor" aria-label="anchor" href="#audit-trail"></a></h2>
+
+      <div class="section-desc"><p>Retrieve edit history</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="get_audit_trail.html">get_audit_trail()</a></code>
+
+        </dt>
+        <dd>Get audit trail for document</dd>
+      </dl></div><div class="section level2">
+      <h2 id="benchmarking">Benchmarking<a class="anchor" aria-label="anchor" href="#benchmarking"></a></h2>
+
+      <div class="section-desc"><p>Accuracy benchmarking utilities</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="collect_benchmark_results.html">collect_benchmark_results()</a></code>
+
+        </dt>
+        <dd>Collect all benchmark trial results into a single CSV</dd>
+      </dl><dl><dt>
+
+          <code><a href="compute_duplicate_rate.html">compute_duplicate_rate()</a></code>
+
+        </dt>
+        <dd>Compute duplicate rate across benchmark trials</dd>
       </dl><dl><dt>
 
           <code><a href="standardize_benchmark_names.html">standardize_benchmark_names()</a></code>
 
         </dt>
         <dd>Standardize names across benchmark replicates</dd>
+      </dl><dl><dt>
+
+          <code><a href="standardize_name_vector.html">standardize_name_vector()</a></code>
+
+        </dt>
+        <dd>Standardize a vector of names using an LLM</dd>
+      </dl></div><div class="section level2">
+      <h2 id="utilities">Utilities<a class="anchor" aria-label="anchor" href="#utilities"></a></h2>
+
+      <div class="section-desc"><p>Value conversion, record management, and internal helpers</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="convert_edit_value.html">convert_edit_value()</a></code>
+
+        </dt>
+        <dd>Convert edited cell value to the appropriate type</dd>
+      </dl><dl><dt>
+
+          <code><a href="get_ecoreview_option.html">get_ecoreview_option()</a></code>
+
+        </dt>
+        <dd>Get ecoreview configuration option</dd>
+      </dl><dl><dt>
+
+          <code><a href="process_delete_with_renumbering.html">process_delete_with_renumbering()</a></code>
+
+        </dt>
+        <dd>Process delete with renumbering</dd>
       </dl></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">
@@ -195,14 +324,23 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>list(text = “EcoReview - Human-in-the-loop review for ecological data extraction”)</p>
 </div>
 
     </footer></div>
 
 
 
-
-
-  </body></html>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script><script>
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  document.querySelectorAll("pre.mermaid").forEach(function(pre) {
+    var code = pre.querySelector("code");
+    var text = code ? code.textContent : pre.textContent;
+    var div = document.createElement("div");
+    div.className = "mermaid";
+    div.textContent = text;
+    pre.parentElement.replaceChild(div, pre);
+  });
+  mermaid.run();
+</script></body></html>
 

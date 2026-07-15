@@ -18,7 +18,7 @@
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-primary" data-bs-theme="dark" aria-label="Site navigation"><div class="container">
 
     <a class="navbar-brand me-2" href="index.html">ecoreview</a>
 
@@ -31,16 +31,11 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="active nav-item"><a class="nav-link" href="index.html" aria-label="Home"><span class="fa fa-home"></span></a></li>
+<li class="nav-item"><a class="nav-link" href="articles/ecoreview-workflow.html">Guide</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/reviewing-extraction-output.html">Reviewing</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/accuracy.html">Accuracy</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/accuracy.html">Accuracy Metrics</a></li>
-    <li><a class="dropdown-item" href="articles/ecoreview-workflow.html">EcoReview: Getting Started</a></li>
-    <li><a class="dropdown-item" href="articles/reviewing-extraction-output.html">Reviewing Extraction Output</a></li>
-  </ul>
-</li>
-<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -57,25 +52,77 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="ecoreview">ecoreview<a class="anchor" aria-label="anchor" href="#ecoreview"></a>
 </h1></div>
-<p>Shiny app for reviewing and validating ecological data extracted with the <a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a> package.</p>
+<p>Human-in-the-loop review and validation of ecological data extracted with <a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a>.</p>
+<div class="section level2">
+<h2 id="pipeline">Pipeline<a class="anchor" aria-label="anchor" href="#pipeline"></a>
+</h2>
+<pre class="mermaid"><code>graph LR
+    A[PDF Papers] --&gt;|ohseer| B[OCR]
+    B --&gt;|ecoextract| C[Metadata Extraction]
+    B --&gt;|ecoextract| D[Data Extraction]
+    C --&gt; E[SQLite Database]
+    D --&gt; E
+    E -.-&gt;|optional| F[Refinement]
+    F -.-&gt; E
+    E --&gt;|ecoreview| G[Human Review]
+    G --&gt; H[Validated Data]
+
+    style A fill:#e1f5ff
+    style H fill:#c8e6c9
+    style G fill:#fff9c4
+    style E fill:#f0f0f0</code></pre>
+<table class="table">
+<colgroup>
+<col width="36%">
+<col width="36%">
+<col width="26%">
+</colgroup>
+<thead><tr>
+<th>Package</th>
+<th>Purpose</th>
+<th>Links</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/n8layman/ohseer" class="external-link">ohseer</a></td>
+<td>OCR processing (Mistral, Tensorlake, Claude)</td>
+<td><a href="https://github.com/n8layman/ohseer" class="external-link">GitHub</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a></td>
+<td>AI-powered extraction pipeline</td>
+<td>
+<a href="https://n8layman.github.io/ecoextract/" class="external-link">Docs</a> | <a href="https://github.com/n8layman/ecoextract" class="external-link">GitHub</a>
+</td>
+</tr>
+<tr>
+<td><a href="https://github.com/n8layman/ecoreview" class="external-link">ecoreview</a></td>
+<td>Interactive Shiny review app</td>
+<td>
+<a href="https://n8layman.github.io/ecoreview/">Docs</a> | <a href="https://github.com/n8layman/ecoreview" class="external-link">GitHub</a>
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Quick Links:</strong></p>
+<ul>
+<li>
+<a href="https://n8layman.github.io/ecoreview/articles/ecoreview-workflow.html">Workflow Guide</a> (Installation, connecting a database, review workflow, exporting)</li>
+<li>
+<a href="https://n8layman.github.io/ecoreview/articles/reviewing-extraction-output.html">Reviewing Extraction Output</a> (Interface walkthrough, editing records, evidence highlighting)</li>
+<li>
+<a href="https://n8layman.github.io/ecoreview/articles/accuracy.html">Accuracy Metrics</a> (Recall, precision, F1, programmatic access)</li>
+</ul>
+</div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
-<p><strong>ecoreview</strong> is part of a three-package workflow for extracting and validating structured data from scientific literature:</p>
-<ol style="list-style-type: decimal">
-<li>
-<strong><a href="https://github.com/n8layman/ohseer" class="external-link">ohseer</a></strong> - OCR processing to extract text from PDFs</li>
-<li>
-<strong><a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a></strong> - LLM-powered structured data extraction from OCR text</li>
-<li>
-<strong>ecoreview</strong> - Human-in-the-loop review and validation interface (this package)</li>
-</ol>
-<p>After ecoextract processes your documents, use ecoreview to review, edit, and validate the extracted records with a side-by-side document viewer.</p>
+<p><strong>ecoreview</strong> is the review step of a three-package workflow for extracting and validating structured data from scientific literature. After ecoextract processes your documents, use ecoreview to review, edit, and validate the extracted records with a side-by-side document viewer.</p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># renv (recommended for renv-managed projects)</span></span>
 <span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/install.html" class="external-link">install</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
 <span></span>
@@ -94,7 +141,7 @@
 <div class="section level3">
 <h3 id="basic-usage">Basic Usage<a class="anchor" aria-label="anchor" href="#basic-usage"></a>
 </h3>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://n8layman.github.io/ecoreview/">ecoreview</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Launch with defaults (looks for ecoextract_records.db in current directory)</span></span>
@@ -103,7 +150,7 @@
 <div class="section level3">
 <h3 id="customized-usage">Customized Usage<a class="anchor" aria-label="anchor" href="#customized-usage"></a>
 </h3>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://n8layman.github.io/ecoreview/">ecoreview</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Launch with custom configuration</span></span>
@@ -118,7 +165,7 @@
 <h3 id="column-display-configuration">Column Display Configuration<a class="anchor" aria-label="anchor" href="#column-display-configuration"></a>
 </h3>
 <p>Use <code>priority_cols</code> to pin the most important columns to the left, and <code>visible_cols</code> to show only the columns reviewers need. Neither parameter affects the underlying database — they are display-only settings.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/run_app.html">run_app</a></span><span class="op">(</span></span>
 <span>  title <span class="op">=</span> <span class="st">"ChiroScan: Bat Interaction Review"</span>,</span>
 <span>  <span class="co"># Show these columns first (left-most), in this order</span></span>
@@ -173,7 +220,7 @@
 <h2 id="getting-started-with-the-full-workflow">Getting Started with the Full Workflow<a class="anchor" aria-label="anchor" href="#getting-started-with-the-full-workflow"></a>
 </h2>
 <p>If you’re new to the ecosystem, start with <a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a>:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 1. Install the extraction packages</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"n8layman/ohseer"</span><span class="op">)</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"n8layman/ecoextract"</span><span class="op">)</span></span>
@@ -195,7 +242,7 @@
 <h2 id="parallel--team-review">Parallel / Team Review<a class="anchor" aria-label="anchor" href="#parallel--team-review"></a>
 </h2>
 <p><code><a href="reference/split_db.html">ecoreview::split_db()</a></code> divides a database into <code>n</code> roughly-equal part files so multiple reviewers can each work through their own subset independently. <code><a href="reference/combine_db.html">ecoreview::combine_db()</a></code> merges the finished parts back into a single database, accepting either a directory path (auto-discovers <code>*_part_N.db</code> files) or an explicit vector of paths. Before writing any data, <code><a href="reference/combine_db.html">combine_db()</a></code> validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in <code><a href="reference/run_app.html">run_app()</a></code> gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Split into 4 sequential parts (lowest document IDs first) — written next to the source file</span></span>
 <span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">ecoreview</span><span class="fu">::</span><span class="fu"><a href="reference/split_db.html">split_db</a></span><span class="op">(</span><span class="st">"ecoextract_records.db"</span>, n <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co"># → ecoextract_records_part_1.db ... ecoextract_records_part_4.db</span></span>
@@ -260,7 +307,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>list(text = “EcoReview - Human-in-the-loop review for ecological data extraction”)</p>
 </div>
 
     </footer>
@@ -268,7 +315,17 @@
 
 
 
-
-
-  </body>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script><script>
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  document.querySelectorAll("pre.mermaid").forEach(function(pre) {
+    var code = pre.querySelector("code");
+    var text = code ? code.textContent : pre.textContent;
+    var div = document.createElement("div");
+    div.className = "mermaid";
+    div.textContent = text;
+    pre.parentElement.replaceChild(div, pre);
+  });
+  mermaid.run();
+</script>
+</body>
 </html>
