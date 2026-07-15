@@ -20,6 +20,7 @@ template:
       </script>
 
 navbar:
+  bg: primary
   structure:
     left: [home, workflow, reviewing, accuracy, reference]
     right: [search, github]
