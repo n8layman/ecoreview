@@ -15,11 +15,17 @@ After ecoextract processes your documents, use ecoreview to review, edit, and va
 ## Installation
 
 ```r
-# Install from GitHub
+# renv (recommended for renv-managed projects)
 renv::install("n8layman/ecoreview")
 
-# or with remotes
+# pak
+pak::pak("n8layman/ecoreview")
+
+# remotes
 remotes::install_github("n8layman/ecoreview")
+
+# devtools
+devtools::install_github("n8layman/ecoreview")
 ```
 
 ## Usage
