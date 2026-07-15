@@ -1,0 +1,122 @@
+---
+title: "Reviewing Extraction Output"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reviewing Extraction Output}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This guide covers the record review interface in depth: how to navigate documents, edit records, add missing ones, delete incorrect ones, and verify your work.
+
+# Opening a Document
+
+Select a document from the dropdown in the left sidebar. The table loads that document's extracted records; the OCR viewer loads its text.
+
+**Filtering the list:**
+
+- **Show only unreviewed** (default on) hides documents that already have a `reviewed_at` timestamp
+- **Show document IDs** switches labels to numeric IDs sorted ascending -- useful for jumping to a known ID
+
+The badge shows `X of Y unreviewed` based on unique, non-NULL document IDs.
+
+# Reading the OCR Text
+
+The OCR panel shows the markdown text extracted from the paper by ohseer/Mistral. It renders tables, headings, and inline formatting. Use it to cross-check the extracted records against the original source.
+
+**Evidence highlighting:** when you click a row in the records table, sentences from `all_supporting_source_sentences` are highlighted in orange in the OCR panel. Hovering a highlighted sentence shows a tooltip listing all evidence sentences for that row, with a ⚠️ warning on any sentence that could not be located in the OCR text.
+
+**PDF view:** click the **PDF** tab to switch to the embedded PDF viewer. The PDF path is resolved from the database; if it cannot be found, the viewer shows "PDF Not Available." Use `run_app(pdf_dir = "path/to/pdfs")` to point the app at a folder of PDFs when they are stored separately from the database.
+
+# Editing Records
+
+Double-click any cell to edit it inline. The cell becomes an input; press Enter or click elsewhere to confirm. Changes are applied to `values$extracted_df` immediately and saved to the database when you click **Verify**.
+
+**Audit trail:** every cell edit is recorded in the `record_edits` table with the original value, new value, column name, and timestamp. This powers the accuracy metrics.
+
+**Field types:** all cells are free-text. The schema-defined types are enforced during extraction but not during review -- you can type any value.
+
+## Editing the first author or year
+
+If you change the `first_author_lastname` or `publication_year` fields (via the metadata inputs above the table, not the table cells), the app automatically renames all `record_id` values for that document to match the new `Author_Year_N_rM` pattern.
+
+# Adding Records
+
+Click **Add Row** to append a blank row to the table. Fill in the fields inline. The new row is assigned a `record_id` of the form `Author_Year_combo_rN` on verify.
+
+Added rows are flagged `added_by_user = 1` in the database so they can be distinguished from LLM-extracted records in accuracy analysis.
+
+# Deleting Records
+
+Select one or more rows (click, Shift+click for a range, Ctrl/Cmd+click to add individual rows), then click **Delete**. A confirmation modal shows how many rows will be deleted. Confirm to proceed.
+
+Deleted rows are **soft-deleted** -- the `deleted_by_user` timestamp is set rather than the row being removed. They remain in the database and appear greyed out when **Show deleted** is checked. This means:
+
+- The audit trail is preserved
+- Accuracy metrics correctly identify records the reviewer removed
+- You can restore a deleted record by selecting it and clicking **Restore**
+
+# Verifying a Document
+
+Click **Verify** (or **Accept**) to mark the current document as reviewed. This:
+
+1. Saves all pending edits to the database via `ecoextract::save_document()`
+2. Sets `reviewed_at` on the document row
+3. Moves to the next unreviewed document if **Show only unreviewed** is on
+
+The document name gets a `✓` prefix in the dropdown.
+
+**Double-clicking Verify** is safe -- the app reloads the current database state immediately before each save, so a second click compares against the already-saved rows and produces no duplicates.
+
+# Column Management
+
+Click **Columns** to open the column visibility panel. Drag column names between the **Visible** and **Hidden** zones to show or hide them. Click **Show All** to make everything visible at once, or **Hide All** to collapse to nothing. The column order in the Visible list determines left-to-right order in the table.
+
+Column changes are display-only -- the underlying database is never modified.
+
+**Priority columns:** set `priority_cols` in `run_app()` to pin the most important columns to the left by default:
+
+```{r priority-cols}
+run_app(
+  db_path = "records.db",
+  priority_cols = c("Pathogen_Name", "Host_Name", "Detection_Result_Direction")
+)
+```
+
+**Visible columns:** set `visible_cols` to show only a subset on load:
+
+```{r visible-cols}
+run_app(
+  db_path = "records.db",
+  visible_cols = c("Pathogen_Name", "Host_Name", "Observation_Type")
+)
+```
+
+# The Reasoning Pane
+
+Some databases include an `extraction_reasoning` column that records the LLM's chain-of-thought during extraction. If present, a **Show Reasoning** button appears below the table. Click it to reveal the full reasoning for the current document.
+
+# Schema Migration Warning
+
+When you connect to a database, ecoreview checks the `records.id` column type. If the database uses an older (pre-UUID) integer schema, a warning modal appears:
+
+- **Blocking modal** (`id INTEGER`, no primary key): the schema cannot assign IDs automatically. Do not add or edit records until you run `ecoextract::migrate_ecoextract_database("path/to/db")`.
+- **Advisory modal** (`id INTEGER PRIMARY KEY`): saving works, but databases cannot be merged with `combine_db()` until migrated. Dismiss and continue, or migrate first.
+
+# Keyboard Shortcuts
+
+| Action | Shortcut |
+|--------|---------|
+| Confirm cell edit | Enter |
+| Cancel cell edit | Escape |
+| Select row | Click |
+| Add to selection | Ctrl/Cmd + Click |
+| Select range | Shift + Click |

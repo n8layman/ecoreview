@@ -2,3 +2,122 @@ url: https://n8layman.github.io/ecoreview/
 
 template:
   bootstrap: 5
+  bootswatch: flatly
+  includes:
+    after_body: >
+      <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+      <script>
+        mermaid.initialize({ startOnLoad: false, theme: "default" });
+        document.querySelectorAll("pre.mermaid").forEach(function(pre) {
+          var code = pre.querySelector("code");
+          var text = code ? code.textContent : pre.textContent;
+          var div = document.createElement("div");
+          div.className = "mermaid";
+          div.textContent = text;
+          pre.parentElement.replaceChild(div, pre);
+        });
+        mermaid.run();
+      </script>
+
+navbar:
+  structure:
+    left: [home, workflow, reviewing, accuracy, reference]
+    right: [search, github]
+  components:
+    home:
+      icon: fa-home
+      href: index.html
+      aria-label: Home
+    workflow:
+      text: Guide
+      href: articles/ecoreview-workflow.html
+    reviewing:
+      text: Reviewing
+      href: articles/reviewing-extraction-output.html
+    accuracy:
+      text: Accuracy
+      href: articles/accuracy.html
+    reference:
+      text: Reference
+      href: reference/index.html
+
+footer:
+  structure:
+    left: developed_by
+    right: ecoreview_footer
+  components:
+    ecoreview_footer:
+      text: "EcoReview - Human-in-the-loop review for ecological data extraction"
+
+reference:
+  - title: App
+    desc: Launch and configure the review application
+    contents:
+      - run_app
+
+  - title: Database Splitting
+    desc: Distribute and recombine databases for parallel review
+    contents:
+      - split_db
+      - combine_db
+
+  - title: Table Display
+    desc: DataTable formatting and styling utilities
+    contents:
+      - create_styled_datatable
+      - apply_deleted_row_styling
+      - apply_restored_row_styling
+      - apply_edited_styling
+      - get_all_edited_cells
+      - get_restored_interaction_ids
+
+  - title: OCR and Evidence
+    desc: Render OCR content and highlight supporting evidence
+    contents:
+      - render_tensorlake_html
+      - build_evidence_index
+      - get_highlight_matches
+      - find_best_match_in_html
+      - find_sentence_matches
+      - html_to_plain_text
+      - highlight_similar_text
+      - reconstruct_text_with_highlights
+      - extract_sentences_from_markdown
+      - calculate_sentence_similarities
+      - clean_sentence_for_comparison
+
+  - title: File Handling
+    desc: PDF path resolution and temporary file management
+    contents:
+      - resolve_pdf_path
+      - find_project_root
+      - create_temp_pdf_for_display
+      - cleanup_temp_files
+
+  - title: Audit Trail
+    desc: Retrieve edit history
+    contents:
+      - get_audit_trail
+
+  - title: Benchmarking
+    desc: Accuracy benchmarking utilities
+    contents:
+      - collect_benchmark_results
+      - compute_duplicate_rate
+      - standardize_benchmark_names
+      - standardize_name_vector
+
+  - title: Utilities
+    desc: Value conversion, record management, and internal helpers
+    contents:
+      - convert_edit_value
+      - get_ecoreview_option
+      - process_delete_with_renumbering
+
+articles:
+  - title: Guides
+    navbar: ~
+    contents:
+      - ecoreview-workflow
+      - reviewing-extraction-output
+      - accuracy

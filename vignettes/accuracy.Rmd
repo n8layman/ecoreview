@@ -1,0 +1,143 @@
+---
+title: "Accuracy Metrics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Accuracy Metrics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+After verifying documents, ecoreview can calculate how accurately ecoextract found and filled in your records. This guide explains what the metrics mean and how to use them.
+
+# Accessing the Accuracy Modal
+
+Click the **Accuracy** button (bar chart icon) in the header. The modal shows metrics calculated across all verified documents in the connected database.
+
+Metrics are only meaningful for **verified** documents (those with a `reviewed_at` timestamp). Unverified documents have unknown ground truth and are excluded.
+
+# What Gets Measured
+
+The accuracy calculation compares the **LLM's original output** against the **human-corrected ground truth** for each verified document.
+
+Three things can happen to a record during review:
+
+| Event | Meaning |
+|-------|---------|
+| Record kept unedited | LLM extracted it correctly |
+| Record edited | LLM found it but got one or more fields wrong |
+| Record deleted | LLM hallucinated a record that doesn't exist |
+| Record added by reviewer | LLM missed a real record |
+
+# Metrics
+
+## Record Detection
+
+**Recall** -- what fraction of real records did the LLM find?
+
+$$\text{Recall} = \frac{\text{LLM records kept or edited}}{\text{LLM records kept or edited} + \text{records added by reviewer}}$$
+
+A low recall means the LLM is missing records that are present in the papers.
+
+**Precision** -- what fraction of LLM records were real?
+
+$$\text{Precision} = \frac{\text{LLM records kept or edited}}{\text{LLM records kept or edited} + \text{records deleted by reviewer}}$$
+
+A low precision means the LLM is hallucinating records that don't exist.
+
+**F1** -- harmonic mean of precision and recall. A single summary of detection performance.
+
+## Field-Level Accuracy
+
+Record detection only tells half the story -- a found record may still have incorrect field values. Field-level metrics measure how accurately individual fields were filled in.
+
+**Field precision** -- across all non-deleted, LLM-extracted records, what fraction of field values are correct (unedited)?
+
+**Major edit rate** -- what fraction of records required at least one edit to a "major" field (fields that uniquely identify a record in your schema, or required fields)?
+
+**Average edits per document** -- how many field corrections were needed per verified document on average.
+
+## Interpreting Results
+
+| Metric | Healthy range | Concern |
+|--------|--------------|---------|
+| Recall | > 0.90 | LLM missing real records |
+| Precision | > 0.90 | LLM hallucinating records |
+| Field precision | > 0.85 | Fields frequently wrong |
+| Major edit rate | < 0.15 | Core fields often incorrect |
+| Avg edits/doc | < 3 | Many corrections needed per paper |
+
+These ranges are rough guides -- the right threshold depends on your schema complexity and domain.
+
+# Programmatic Access
+
+Accuracy metrics are also available via `ecoextract::calculate_accuracy()`:
+
+```{r calculate-accuracy}
+accuracy <- ecoextract::calculate_accuracy("ecoextract_records.db")
+
+# Detection metrics
+accuracy$detection_recall
+accuracy$detection_precision
+accuracy$detection_f1
+
+# Field-level metrics
+accuracy$field_precision
+accuracy$major_edit_rate
+accuracy$avg_edits_per_document
+
+# Per-document breakdown
+accuracy$by_document
+```
+
+For a detailed explanation of how each metric is derived, see [ACCURACY.md](https://github.com/n8layman/ecoextract/blob/main/ACCURACY.md) in the ecoextract repository.
+
+# Using Accuracy to Improve Extraction
+
+Accuracy metrics guide prompt and schema iteration:
+
+**Low recall** → the LLM is missing records. Review the extraction prompt -- add examples, clarify what counts as a record, check if papers with many records have lower recall than those with few.
+
+**Low precision** → the LLM is hallucinating. Tighten the schema's required fields and add negative examples to the prompt ("do not extract X if Y is absent").
+
+**Low field precision on specific columns** → those fields are ambiguous in the prompt or schema. Add a definition, examples, and edge-case guidance for those fields.
+
+**High major edit rate** → the unique/required fields are frequently wrong. These are the most impactful errors -- prioritise fixing them in the prompt.
+
+The typical iteration loop:
+
+1. Process a small batch (10-20 papers)
+2. Review in ecoreview, click Verify for each
+3. Check the Accuracy modal
+4. Update `ecoextract/extraction_prompt.md` or `ecoextract/schema.json`
+5. Force re-extract the same batch and compare metrics
+6. When satisfied, process the full corpus
+
+# Exporting for Analysis
+
+Use **Export Records CSV** to get a flat file suitable for further analysis in R or Excel. The export includes:
+
+- All non-deleted records joined with document metadata
+- `record_id` for tracing back to the database
+- `reviewed_at` on each row (from the document join) to filter to verified records
+
+```{r export-analysis}
+library(readr)
+library(dplyr)
+
+records <- read_csv("myproject_records_20260706.csv")
+
+# Verified documents only
+verified <- records |> filter(!is.na(reviewed_at))
+
+# Quick summary
+cat("Documents verified:", n_distinct(verified$document_id), "\n")
+cat("Total records:", nrow(verified), "\n")
+```
