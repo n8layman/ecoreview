@@ -9,6 +9,9 @@
 #' @param app_name Short name for the application (used in export filenames)
 #' @param github_url Optional GitHub repository URL for source link. Set to NULL to hide.
 #' @param export_prefix Prefix for exported CSV filenames (default: "ecoextract")
+#' @param db_path Optional path to a SQLite database file to connect to on
+#'   startup. If supplied and the file exists, the app opens it immediately
+#'   without showing the connect modal. NULL (default) shows the connect modal.
 #' @param priority_cols Character vector of column names to display first (left-most).
 #'   Columns not present in the data are silently ignored. All other columns follow
 #'   in their original order. NULL (default) uses the data frame column order.
@@ -49,6 +52,7 @@ run_app <- function(
   app_name = "EcoReview",
   github_url = "https://github.com/n8layman/ecoreview",
   export_prefix = "ecoextract",
+  db_path = NULL,
   priority_cols = NULL,
   visible_cols = NULL,
   pdf_dir = NULL,
@@ -63,6 +67,8 @@ run_app <- function(
     ecoreview.app_name = app_name,
     ecoreview.github_url = github_url,
     ecoreview.export_prefix = export_prefix,
+    ecoreview.db_path = if (!is.null(db_path))
+      normalizePath(db_path, mustWork = FALSE) else "",
     ecoreview.user_working_dir = user_wd,
     ecoreview.priority_cols = priority_cols,
     ecoreview.visible_cols = visible_cols,

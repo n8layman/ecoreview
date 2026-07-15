@@ -105,7 +105,7 @@ results <- process_documents(
 )
 
 # 3. Review and validate the results
-pak::pak("n8layman/ecoreview")
+renv::install("n8layman/ecoreview")
 library(ecoreview)
 run_app(db_path = "ecoextract_records.db")
 ```

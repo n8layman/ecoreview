@@ -7,9 +7,9 @@ app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
 
-# Database path: user must always choose on load
-db_path <- ""
-db_exists <- FALSE
+# Database path: optionally pre-set via run_app(db_path = ...)
+db_path  <- getOption("ecoreview.db_path", "")
+db_exists <- nzchar(db_path) && file.exists(db_path)
 
 options(shiny.maxRequestSize = 50*1024^2)
 

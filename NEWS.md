@@ -1,5 +1,16 @@
 # ecoreview news
 
+## 0.1.41 (2026-07-06)
+
+### Improvements
+
+- **`run_app(db_path = ...)` parameter**: pass a path to a SQLite database and
+  the app connects to it automatically on startup, skipping the connect modal.
+- **Man pages regenerated**: `split_db.Rd` now documents the `random` and
+  updated `seed` parameters. `run_app.Rd` documents `db_path`.
+
+---
+
 ## 0.1.40 (2026-07-06)
 
 ### Improvements

@@ -9,6 +9,7 @@ run_app(
   app_name = "EcoReview",
   github_url = "https://github.com/n8layman/ecoreview",
   export_prefix = "ecoextract",
+  db_path = NULL,
   priority_cols = NULL,
   visible_cols = NULL,
   pdf_dir = NULL,
@@ -23,6 +24,10 @@ run_app(
 \item{github_url}{Optional GitHub repository URL for source link. Set to NULL to hide.}
 
 \item{export_prefix}{Prefix for exported CSV filenames (default: "ecoextract")}
+
+\item{db_path}{Optional path to a SQLite database file to connect to on
+startup. If supplied and the file exists, the app opens it immediately
+without showing the connect modal. NULL (default) shows the connect modal.}
 
 \item{priority_cols}{Character vector of column names to display first (left-most).
 Columns not present in the data are silently ignored. All other columns follow

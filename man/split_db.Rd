@@ -4,7 +4,14 @@
 \alias{split_db}
 \title{Split a database into roughly equal pieces for parallel review}
 \usage{
-split_db(db_path, n, output_dir = NULL, prefix = NULL, seed = NULL)
+split_db(
+  db_path,
+  n,
+  output_dir = NULL,
+  prefix = NULL,
+  random = FALSE,
+  seed = NULL
+)
 }
 \arguments{
 \item{db_path}{Path to the source SQLite database.}
@@ -18,9 +25,12 @@ directory as \code{db_path}.}
 filename (without extension). Parts are named
 \verb{\{prefix\}_part_01.db}, \verb{\{prefix\}_part_02.db}, etc.}
 
-\item{seed}{Optional integer seed for reproducible random assignment of
-documents to parts. If \code{NULL} (default), documents are assigned in
-their existing order.}
+\item{random}{Logical. If \code{FALSE} (default), documents are assigned in
+ascending \code{document_id} order so each part gets a consecutive block of
+IDs. If \code{TRUE}, documents are shuffled randomly before assignment.}
+
+\item{seed}{Optional integer seed for reproducible random assignment when
+\code{random = TRUE}. Ignored when \code{random = FALSE}.}
 }
 \value{
 Character vector of paths to the created part databases
@@ -37,11 +47,11 @@ After reviewers finish, recombine with \code{\link[=combine_db]{combine_db()}}.
 }
 \examples{
 \dontrun{
-# Split into 4 equal parts for 4 reviewers
+# Sequential split (default): part 1 gets lowest IDs, part 2 next block, etc.
 parts <- split_db("extractions.db", n = 4)
 
-# Randomise assignment with a reproducible seed
-parts <- split_db("extractions.db", n = 4, seed = 42,
+# Random split with a reproducible seed
+parts <- split_db("extractions.db", n = 4, random = TRUE, seed = 42,
                   output_dir = "review_parts")
 }
 }
