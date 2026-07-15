@@ -16,6 +16,9 @@ After ecoextract processes your documents, use ecoreview to review, edit, and va
 
 ```r
 # Install from GitHub
+renv::install("n8layman/ecoreview")
+
+# or with remotes
 remotes::install_github("n8layman/ecoreview")
 ```
 
@@ -74,7 +77,11 @@ button above the table, which opens a drag-and-drop panel with Visible and Hidde
 - **Evidence highlighting**: Click a record to highlight supporting text in the document
 - **Audit trail**: Full history of all edits made during review
 - **Accuracy metrics**: Precision, recall, and F1 scores calculated from verified documents
-- **Export options**: Download reviewed data as CSV or save the database file
+- **Document navigation**: Toggle the dropdown between filename and document ID display to jump directly to a known ID
+- **Export Records CSV**: Downloads all non-deleted records joined with document metadata, with wide columns (OCR text, reasoning) stripped for readability
+- **Export Documents CSV**: Downloads a summary of all documents — ID, filename, author, year, title, and pipeline statuses (OCR, metadata, extraction, refinement)
+- **Save Database**: Download the current SQLite file with all edits applied
+- **Schema migration warning**: Alerts on connect if the database uses a pre-UUID schema that requires migration
 
 ## Requirements
 
@@ -110,9 +117,12 @@ See the [ecoextract documentation](https://github.com/n8layman/ecoextract) for c
 `ecoreview::split_db()` divides a database into `n` roughly-equal part files so multiple reviewers can each work through their own subset independently. `ecoreview::combine_db()` merges the finished parts back into a single database, accepting either a directory path (auto-discovers `*_part_N.db` files) or an explicit vector of paths. Before writing any data, `combine_db()` validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in `run_app()` gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.
 
 ```r
-# Split into 4 parts (one per reviewer) — written next to the source file
+# Split into 4 sequential parts (lowest document IDs first) — written next to the source file
 parts <- ecoreview::split_db("ecoextract_records.db", n = 4)
 # → ecoextract_records_part_1.db ... ecoextract_records_part_4.db
+
+# Random assignment instead of sequential
+parts <- ecoreview::split_db("ecoextract_records.db", n = 4, random = TRUE, seed = 42)
 
 # Each reviewer launches the app pointed at their own part
 ecoreview::run_app(db_path = "ecoextract_records_part_2.db")
