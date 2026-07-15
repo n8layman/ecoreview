@@ -1,16 +1,42 @@
 # ecoreview
 
-Shiny app for reviewing and validating ecological data extracted with the [ecoextract](https://github.com/n8layman/ecoextract) package.
+Human-in-the-loop review and validation of ecological data extracted with [ecoextract](https://github.com/n8layman/ecoextract).
+
+## Pipeline
+
+```mermaid
+graph LR
+    A[PDF Papers] -->|ohseer| B[OCR]
+    B -->|ecoextract| C[Metadata Extraction]
+    B -->|ecoextract| D[Data Extraction]
+    C --> E[SQLite Database]
+    D --> E
+    E -.->|optional| F[Refinement]
+    F -.-> E
+    E -->|ecoreview| G[Human Review]
+    G --> H[Validated Data]
+
+    style A fill:#e1f5ff
+    style H fill:#c8e6c9
+    style G fill:#fff9c4
+    style E fill:#f0f0f0
+```
+
+| Package | Purpose | Links |
+| ------- | ------- | ----- |
+| [ohseer](https://github.com/n8layman/ohseer) | OCR processing (Mistral, Tensorlake, Claude) | [GitHub](https://github.com/n8layman/ohseer) |
+| [ecoextract](https://github.com/n8layman/ecoextract) | AI-powered extraction pipeline | [Docs](https://n8layman.github.io/ecoextract/) \| [GitHub](https://github.com/n8layman/ecoextract) |
+| [ecoreview](https://github.com/n8layman/ecoreview) | Interactive Shiny review app | [Docs](https://n8layman.github.io/ecoreview/) \| [GitHub](https://github.com/n8layman/ecoreview) |
+
+**Quick Links:**
+
+- [Workflow Guide](https://n8layman.github.io/ecoreview/articles/ecoreview-workflow.html) (Installation, connecting a database, review workflow, exporting)
+- [Reviewing Extraction Output](https://n8layman.github.io/ecoreview/articles/reviewing-extraction-output.html) (Interface walkthrough, editing records, evidence highlighting)
+- [Accuracy Metrics](https://n8layman.github.io/ecoreview/articles/accuracy.html) (Recall, precision, F1, programmatic access)
 
 ## Overview
 
-**ecoreview** is part of a three-package workflow for extracting and validating structured data from scientific literature:
-
-1. **[ohseer](https://github.com/n8layman/ohseer)** - OCR processing to extract text from PDFs
-2. **[ecoextract](https://github.com/n8layman/ecoextract)** - LLM-powered structured data extraction from OCR text
-3. **ecoreview** - Human-in-the-loop review and validation interface (this package)
-
-After ecoextract processes your documents, use ecoreview to review, edit, and validate the extracted records with a side-by-side document viewer.
+**ecoreview** is the review step of a three-package workflow for extracting and validating structured data from scientific literature. After ecoextract processes your documents, use ecoreview to review, edit, and validate the extracted records with a side-by-side document viewer.
 
 ## Installation
 
