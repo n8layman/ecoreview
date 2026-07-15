@@ -1,41 +1,36 @@
-# ecoreview news
+# ecoreview 0.1.41
 
-## 0.1.41 (2026-07-06)
-
-### Improvements
+## Improvements
 
 - **`run_app(db_path = ...)` parameter**: pass a path to a SQLite database and
   the app connects to it automatically on startup, skipping the connect modal.
 - **Man pages regenerated**: `split_db.Rd` now documents the `random` and
   updated `seed` parameters. `run_app.Rd` documents `db_path`.
 
----
 
-## 0.1.40 (2026-07-06)
+# ecoreview 0.1.40
 
-### Improvements
+## Improvements
 
 - **Document count badge uses unique non-NULL document IDs**: total and
   unreviewed counts now count distinct `document_id` values, excluding NULLs.
   Previously `nrow()` was used, so NULL-id rows (from malformed databases)
   inflated both counts.
 
----
 
-## 0.1.39 (2026-07-06)
+# ecoreview 0.1.39
 
-### Bug fixes
+## Bug fixes
 
 - **Crash on startup with certain databases**: "missing value where TRUE/FALSE
   needed" in the document-selector observer when `need_force_load` evaluated to
   `NA` (triggered when a document's `document_id` was `NA`, making the `==`
   comparison return `NA`). Guarded with `isTRUE()`.
 
----
 
-## 0.1.38 (2026-07-05)
+# ecoreview 0.1.38
 
-### Improvements
+## Improvements
 
 - **Curated CSV exports**: records export drops wide/unreadable columns
   (`all_supporting_source_sentences`, `extraction_reasoning`,
@@ -45,22 +40,20 @@
   `extraction_status`, `refinement_status`). Missing columns are silently
   skipped via `dplyr::any_of()`.
 
----
 
-## 0.1.36 (2026-07-05)
+# ecoreview 0.1.36
 
-### Improvements
+## Improvements
 
 - **Separate CSV export buttons**: the single "Export CSV" button is now two
   buttons -- "Export Records CSV" (records joined with document metadata,
   sorted by document_id/record_id) and "Export Documents CSV" (documents
   table only via `ecoextract::get_documents()`).
 
----
 
-## 0.1.35 (2026-07-05)
+# ecoreview 0.1.35
 
-### Improvements
+## Improvements
 
 - **`split_db` explicit `random` flag**: `split_db()` gains a `random`
   parameter (default `FALSE`). When `FALSE`, documents are split in ascending
@@ -68,52 +61,47 @@
   before splitting; combine with `seed` for reproducibility. Previously the
   mode was inferred from whether `seed` was set.
 
----
 
-## 0.1.33 (2026-07-05)
+# ecoreview 0.1.33
 
-### Improvements
+## Improvements
 
 - **Document ID mode sorts numerically**: when "Show document IDs" is checked,
   the dropdown sorts by `document_id` (numeric) instead of filename, so IDs
   appear in order.
 
----
 
-## 0.1.32 (2026-07-05)
+# ecoreview 0.1.32
 
-### Improvements
+## Improvements
 
 - **Toggle document IDs in dropdown**: a "Show document IDs" checkbox below the
   document selector switches the dropdown labels between filenames and raw
   `document_id` integers, making it easy to navigate directly to a known ID.
 
----
 
-## 0.1.31 (2026-07-02)
+# ecoreview 0.1.31
 
-### Bug fixes
+## Bug fixes
 
 - **CSV export groups rows by document**: records were exported in insertion
   order, so manually-added rows (inserted after initial extraction) appeared
   at the end of the file rather than alongside other records from the same
   paper. Export now sorts by `document_id` then `record_id`.
 
----
 
-## 0.1.30 (2026-07-01)
+# ecoreview 0.1.30
 
-### Improvements
+## Improvements
 
 - **Package versions in title bar**: the header now shows both
   `ecoreview vX.Y.Z | ecoextract vX.Y.Z` so users can report exact
   versions without digging through R session info.
 
----
 
-## 0.1.29 (2026-06-30)
+# ecoreview 0.1.29
 
-### Improvements
+## Improvements
 
 - **Schema migration warning on connect**: when opening a database whose
   `records.id` column is `INTEGER` (pre-UUID schema), a modal appears on
@@ -124,11 +112,10 @@
   - `pk = 1` (auto-assign works, but not UUID): dismissible advisory modal
     — saving is safe but databases cannot be merged until migrated.
 
----
 
-## 0.1.27 (2026-06-30)
+# ecoreview 0.1.27
 
-### Improvements
+## Improvements
 
 - **UUID-ready id handling**: `get_all_edited_cells()` and
   `get_restored_interaction_ids()` now initialise with `character(0)` instead
@@ -136,21 +123,19 @@
   character vector. Prepares ecoreview for ecoextract's UUID v4 record ids
   without type-coercion issues.
 
----
 
-## 0.1.26 (2026-06-30)
+# ecoreview 0.1.26
 
-### Improvements
+## Improvements
 
 - **Narrow `id` column in DataTable**: the `id` column is capped at 60 px with
   text-overflow ellipsis so it does not dominate the view. All other columns
   keep the existing 200 px cap. Hover tooltip still shows the full value.
 
----
 
-## 0.1.25 (2026-06-30)
+# ecoreview 0.1.25
 
-### Bug fixes
+## Bug fixes
 
 - **Row duplication when double-clicking Verify** (Smithsonian/OHP issue #4):
   after the first verify, `values$original_df` was never updated from its
@@ -161,21 +146,19 @@
   current DB state. Regression test added at
   `inst/test_add_record_no_existing.R` (test 5b).
 
----
 
-## 0.1.24 (2026-06-30)
+# ecoreview 0.1.24
 
-### Bug fixes
+## Bug fixes
 
 - **`resolve_pdf_path` not exported**: the function was marked `@keywords internal`
   but called via `ecoreview::` in the app, causing an error on installed builds.
   Exported properly; `find_project_root` exported as well for consistency.
 
----
 
-## 0.1.23 (2026-06-30)
+# ecoreview 0.1.23
 
-### Bug fixes
+## Bug fixes
 
 - **"missing value where TRUE/FALSE needed" when adding records to zero-record documents**
   (Smithsonian/OHP issue #4): the record-ID renaming loop (triggered when
@@ -185,11 +168,10 @@
   `!is.na(old_id) &&` guard. Regression test added at
   `inst/test_add_record_no_existing.R`.
 
----
 
-## 0.1.22 (2026-06-09)
+# ecoreview 0.1.22
 
-### Improvements
+## Improvements
 
 - **Robust PDF path resolution** (issue #26): the PDF viewer now tries five
   fallback strategies in order before showing "PDF Not Available":
@@ -204,20 +186,18 @@
 - **PDF Folder field in connect modal**: a Browse button lets users set the
   PDF directory interactively without restarting the app.
 
----
 
-## 0.1.21 (2026-06-09)
+# ecoreview 0.1.21
 
-### Improvements
+## Improvements
 
 - **`pdf_dir` parameter for `run_app()`** (issue #26): initial implementation
   — basename fallback only.
 
----
 
-## 0.1.20 (2026-06-09)
+# ecoreview 0.1.20
 
-### Improvements
+## Improvements
 
 - **Per-column row filtering** (issue #15): enabled DataTables `filter = 'top'`
   so each column header gets a search input (text box for free-text columns,
@@ -225,21 +205,19 @@
   (`server = FALSE`) and does not affect data indices, so row selection, OCR
   highlighting, and sentence match lookups all remain correct.
 
----
 
-## 0.1.19 (2026-06-09)
+# ecoreview 0.1.19
 
-### Improvements
+## Improvements
 
 - **"Show All" button in columns modal** (issue #18): added a "Show All"
   button alongside the existing "Hide All" button. Clicking it moves every
   column from the Hidden bucket back to Visible in one step.
 
----
 
-## 0.1.18 (2026-06-09)
+# ecoreview 0.1.18
 
-### Improvements
+## Improvements
 
 - **Table row sentence tooltip shows match status** (issue #23): hovering over
   a cell in the `all_supporting_source_sentences` column now renders an HTML
@@ -248,7 +226,7 @@
   Uses the `ecrUnmatchedByRow` JS global (already set by `setEvidenceIndex`)
   keyed by the DataTables data-row index. Other column tooltips are unchanged.
 
-### Bug fixes
+## Bug fixes
 
 - **`dtUpdateCell` "Non-table node initialisation" warning**: the JS handler
   was calling `$('#interactiveTable').DataTable()` on the outer Shiny output
@@ -256,22 +234,20 @@
   `$('#interactiveTable table').DataTable()` so the existing API instance is
   returned rather than DataTables attempting re-initialisation on a div.
 
----
 
-## 0.1.17 (2026-06-09)
+# ecoreview 0.1.17
 
-### New features
+## New features
 
 - **Infinite scroll** (issue #21): replaced DataTables pagination with a single
   scrollable container. All rows for the current document are visible without
   page navigation (`paging = FALSE`, pagination controls removed from `dom`).
   The existing `scrollY` container provides the bounded scroll area.
 
----
 
-## 0.1.16 (2026-06-09)
+# ecoreview 0.1.16
 
-### New features and bug fixes
+## New features and bug fixes
 
 - **OS-style multi-row selection** (issue #19): switched to the DataTables Select
   extension with `style = 'os'`. Plain click selects a single row; Ctrl/Cmd+click
@@ -285,18 +261,17 @@
   variable tracks which row was last scrolled to. Re-clicking or double-clicking
   the same row does not trigger another `scrollIntoView`.
 
-### Bug fixes
+## Bug fixes
 
 - **`replaceData` replaced by client-side updates**: the table now renders with
   `server = FALSE` (required by the Select extension). `DT::replaceData` calls
   have been replaced with `table_trigger()` for row-count changes (delete/add)
   and `dtUpdateCell` for in-place cell edits.
 
----
 
-## 0.1.15 (2026-06-09)
+# ecoreview 0.1.15
 
-### Improvements
+## Improvements
 
 - **Verified document indicator**: document names in the dropdown are prefixed
   with ✓ when `reviewed_at` is set, making it easy to spot already-verified
@@ -305,7 +280,7 @@
   shows the current document's filename so it can be triple-clicked and copied
   without opening the dropdown.
 
-### Bug fixes
+## Bug fixes
 
 - **Uncheck "Show only unreviewed" now shows all docs**: the dropdown observer
   was an `observe()` whose reactive dependency on `input$show_unreviewed_only`
@@ -316,11 +291,10 @@
   also eliminates the `values$document_id` feedback loop from document
   navigation.
 
----
 
-## 0.1.14 (2026-06-09)
+# ecoreview 0.1.14
 
-### Bug fixes
+## Bug fixes
 
 - **OCR pane scroll preserved on cell edit** (issue #20): the row-selection
   observer was an `observe()` that depended on `values$extracted_df`. Every
@@ -344,18 +318,17 @@
   in-place update already used by cell edits. Sort column, sort direction,
   scroll position, and current page are all preserved.
 
-### Improvements
+## Improvements
 
 - **OCR highlighting updates on sentences edit**: editing the
   `all_supporting_source_sentences` cell now rebuilds the evidence span index
   and resends `setEvidenceIndex` to the client. All other column edits leave
   the OCR HTML completely untouched.
 
----
 
-## 0.1.13 (2026-06-09)
+# ecoreview 0.1.13
 
-### Bug fixes
+## Bug fixes
 
 - `build_evidence_index`: fixed ev_id corruption where `sentence_to_id` was
   set before the injection-success check. A failed injection rolled back the
@@ -375,48 +348,44 @@
   that OCR line-break hyphens (`amphis-tome`) correctly match the un-hyphenated
   evidence word (`amphistome`).
 
----
 
-## 0.1.12 (2026-06-09)
+# ecoreview 0.1.12
 
-### Improvements
+## Improvements
 
 - OCR viewer now renders page footers and table footnotes. Content in
   `page$other` (e.g. `page_footer`, abbreviation keys) is rendered below the
   table it annotates. Items of type `title` are skipped to avoid duplication.
 
----
 
-## 0.1.11 (2026-06-08)
+# ecoreview 0.1.11
 
-### Bug fixes
+## Bug fixes
 
 - Fixed regression introduced in 0.1.10 where stripping all whitespace from
   HTML before plain-text extraction inadvertently broke the fixed-string span
   injection, causing nothing to be highlighted.
 
----
 
-## 0.1.10 (2026-06-08)
+# ecoreview 0.1.10
 
-### Bug fixes
+## Bug fixes
 
 - Evidence sentences split across OCR line breaks now match. The working HTML
   is whitespace-normalised (`\\s+` → single space) before plain-text extraction
   so that a sentence broken across lines in the raw OCR still aligns with the
   flat plain text used for matching.
 
----
 
-## 0.1.9 (2026-06-07)
+# ecoreview 0.1.9
 
-### Improvements
+## Improvements
 
 - OCR tooltip redesigned: two-column layout when four or more sentences are
   present, vertically centred on the cursor, and a click-to-expand scrollable
   modal showing all supporting sentences in full.
 
-### Bug fixes
+## Bug fixes
 
 - Tooltip and sentence modal were non-functional: the IIFE created the modal
   element via `document.body.appendChild()` before `<body>` existed (script
@@ -424,11 +393,10 @@
   listeners. Fixed with lazy initialisation (`getSentModal()`) mirroring the
   existing `getTooltip()` pattern.
 
----
 
-## 0.1.8 (2026-06-02)
+# ecoreview 0.1.8
 
-### Improvements
+## Improvements
 
 - Evidence matching simplified to a single punctuation-normalised, case-insensitive
   regex pass. Replaces the previous three-tier approach (exact → word-regex →
@@ -440,7 +408,7 @@
 - LaTeX-style superscripts used by Mistral OCR (`^{a}`, `^{b}`, …) are converted
   to `<sup>` tags before rendering.
 
-### Bug fixes
+## Bug fixes
 
 - Evidence span highlighting was completely broken: `row_map` was sending bare
   integers `[0, 1, 2]` to the JS handler which expected `[{id, tier}]` objects,
@@ -448,11 +416,10 @@
 - Tooltip no longer shows a ✓ checkmark for matched sentences; the warning ⚠️
   is kept only for sentences not found in the OCR text.
 
----
 
-## 0.1.7 (2026-06-01)
+# ecoreview 0.1.7
 
-### Bug fixes
+## Bug fixes
 - OCR viewer and table no longer block on document load. `build_evidence_index`
   was running a O(n×m) cosine-trigram sliding window inside a high-priority
   Shiny observer, preventing `renderDataTable` from executing. Evidence span
@@ -465,11 +432,10 @@
   (`{"index": N, "markdown": "..."}` per page) in addition to the tensorlake
   format. Previously, documents OCR'd by Mistral showed a blank preview.
 
----
 
-## 0.1.6 (2026-05-28)
+# ecoreview 0.1.6
 
-### Improvements
+## Improvements
 - OCR highlighting rewritten: evidence spans are now pre-injected into the
   HTML once per document load (`build_evidence_index`) rather than re-rendered
   on every row selection. Row switching is a pure client-side CSS toggle with
@@ -484,41 +450,37 @@
   R package. Eliminates all runtime CDN dependencies.
 - `fontawesome` added to `Imports`.
 
-### Bug fixes
+## Bug fixes
 - Removed polyfill.io script tag (CDN was compromised in 2024 and injected
   malicious JavaScript).
 - Removed MathJax CDN dependency (unused after OCR rendering refactor).
 
----
 
-## 0.1.5 (2026-05-27)
+# ecoreview 0.1.5
 
-### Improvements
+## Improvements
 - split.js CDN URL pinned to v1.6.5 (was unpinned, a supply-chain risk).
 
----
 
-## 0.1.4 (2026-05-26)
+# ecoreview 0.1.4
 
-### Bug fixes
+## Bug fixes
 - Removed MathJax CDN script and config block.
 - Removed polyfill.io script (compromised CDN, initial removal).
 
----
 
-## 0.1.3 (2026-05-25)
+# ecoreview 0.1.3
 
-### Improvements
+## Improvements
 - Package version number displayed next to the GitHub link in the title bar.
 - Hover tooltip on OCR highlighted sentences shows the full list of supporting
   sentences for the selected row.
 
-### Bug fixes
+## Bug fixes
 - Fixed unescaped double quotes in tooltip JS string that caused `app.R` parse
   errors.
 
----
 
-## 0.1.2 and earlier
+# ecoreview 0.1.2
 
 See git log for earlier history.
