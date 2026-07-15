@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">ecoreview</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.41</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,7 @@
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -67,8 +68,17 @@
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="co"># renv (recommended for renv-managed projects)</span></span>
+<span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/install.html" class="external-link">install</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># pak</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># remotes</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># devtools</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
@@ -131,7 +141,15 @@
 <li>
 <strong>Accuracy metrics</strong>: Precision, recall, and F1 scores calculated from verified documents</li>
 <li>
-<strong>Export options</strong>: Download reviewed data as CSV or save the database file</li>
+<strong>Document navigation</strong>: Toggle the dropdown between filename and document ID display to jump directly to a known ID</li>
+<li>
+<strong>Export Records CSV</strong>: Downloads all non-deleted records joined with document metadata, with wide columns (OCR text, reasoning) stripped for readability</li>
+<li>
+<strong>Export Documents CSV</strong>: Downloads a summary of all documents — ID, filename, author, year, title, and pipeline statuses (OCR, metadata, extraction, refinement)</li>
+<li>
+<strong>Save Database</strong>: Download the current SQLite file with all edits applied</li>
+<li>
+<strong>Schema migration warning</strong>: Alerts on connect if the database uses a pre-UUID schema that requires migration</li>
 </ul>
 </div>
 <div class="section level2">
@@ -149,18 +167,18 @@
 <p>If you’re new to the ecosystem, start with <a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a>:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 1. Install the extraction packages</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu">pak</span><span class="op">(</span><span class="st">"n8layman/ohseer"</span><span class="op">)</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu">pak</span><span class="op">(</span><span class="st">"n8layman/ecoextract"</span><span class="op">)</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"n8layman/ohseer"</span><span class="op">)</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"n8layman/ecoextract"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 2. Process your PDFs</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">ecoextract</span><span class="op">)</span></span>
-<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/ecoextract/man/process_documents.html" class="external-link">process_documents</a></span><span class="op">(</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract</a></span><span class="op">)</span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://n8layman.github.io/ecoextract/reference/process_documents.html" class="external-link">process_documents</a></span><span class="op">(</span></span>
 <span>  pdf_path <span class="op">=</span> <span class="st">"path/to/pdfs/"</span>,</span>
 <span>  db_conn <span class="op">=</span> <span class="st">"ecoextract_records.db"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Review and validate the results</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu">pak</span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
+<span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/install.html" class="external-link">install</a></span><span class="op">(</span><span class="st">"n8layman/ecoreview"</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://n8layman.github.io/ecoreview/">ecoreview</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/run_app.html">run_app</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"ecoextract_records.db"</span><span class="op">)</span></span></code></pre></div>
 <p>See the <a href="https://github.com/n8layman/ecoextract" class="external-link">ecoextract documentation</a> for complete workflow details, including API setup, custom schemas, and parallel processing.</p>
@@ -170,9 +188,12 @@
 </h2>
 <p><code><a href="reference/split_db.html">ecoreview::split_db()</a></code> divides a database into <code>n</code> roughly-equal part files so multiple reviewers can each work through their own subset independently. <code><a href="reference/combine_db.html">ecoreview::combine_db()</a></code> merges the finished parts back into a single database, accepting either a directory path (auto-discovers <code>*_part_N.db</code> files) or an explicit vector of paths. Before writing any data, <code><a href="reference/combine_db.html">combine_db()</a></code> validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in <code><a href="reference/run_app.html">run_app()</a></code> gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Split into 4 parts (one per reviewer) — written next to the source file</span></span>
+<code class="sourceCode R"><span><span class="co"># Split into 4 sequential parts (lowest document IDs first) — written next to the source file</span></span>
 <span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">ecoreview</span><span class="fu">::</span><span class="fu"><a href="reference/split_db.html">split_db</a></span><span class="op">(</span><span class="st">"ecoextract_records.db"</span>, n <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co"># → ecoextract_records_part_1.db ... ecoextract_records_part_4.db</span></span>
+<span></span>
+<span><span class="co"># Random assignment instead of sequential</span></span>
+<span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">ecoreview</span><span class="fu">::</span><span class="fu"><a href="reference/split_db.html">split_db</a></span><span class="op">(</span><span class="st">"ecoextract_records.db"</span>, n <span class="op">=</span> <span class="fl">4</span>, random <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">42</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Each reviewer launches the app pointed at their own part</span></span>
 <span><span class="fu">ecoreview</span><span class="fu">::</span><span class="fu"><a href="reference/run_app.html">run_app</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"ecoextract_records_part_2.db"</span><span class="op">)</span></span>

@@ -9,7 +9,7 @@ ecological data extracted with ecoextract."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">ecoreview</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.41</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -18,6 +18,7 @@ ecological data extracted with ecoextract."></head><body>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/n8layman/ecoreview/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -46,8 +47,10 @@ ecological data extracted with ecoextract.</p>
 <span>  app_name <span class="op">=</span> <span class="st">"EcoReview"</span>,</span>
 <span>  github_url <span class="op">=</span> <span class="st">"https://github.com/n8layman/ecoreview"</span>,</span>
 <span>  export_prefix <span class="op">=</span> <span class="st">"ecoextract"</span>,</span>
+<span>  db_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  priority_cols <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  visible_cols <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  pdf_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -72,6 +75,12 @@ ecological data extracted with ecoextract.</p>
 <dd><p>Prefix for exported CSV filenames (default: "ecoextract")</p></dd>
 
 
+<dt id="arg-db-path">db_path<a class="anchor" aria-label="anchor" href="#arg-db-path"></a></dt>
+<dd><p>Optional path to a SQLite database file to connect to on
+startup. If supplied and the file exists, the app opens it immediately
+without showing the connect modal. NULL (default) shows the connect modal.</p></dd>
+
+
 <dt id="arg-priority-cols">priority_cols<a class="anchor" aria-label="anchor" href="#arg-priority-cols"></a></dt>
 <dd><p>Character vector of column names to display first (left-most).
 Columns not present in the data are silently ignored. All other columns follow
@@ -82,6 +91,14 @@ in their original order. NULL (default) uses the data frame column order.</p></d
 <dd><p>Character vector of column names to show. All other columns
 are hidden from the table display (the underlying data is unchanged). NULL
 (default) shows all columns.</p></dd>
+
+
+<dt id="arg-pdf-dir">pdf_dir<a class="anchor" aria-label="anchor" href="#arg-pdf-dir"></a></dt>
+<dd><p>Optional path to the directory containing PDF files. Use
+when the <code>.db</code> file is stored separately from the PDFs or when the app
+is launched from a different working directory. If the path stored in
+the database does not resolve, the app falls back to looking for the
+file's basename here. NULL (default) uses the path stored in the database.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

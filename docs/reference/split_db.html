@@ -13,7 +13,7 @@ entries) assigned to that part."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">ecoreview</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.41</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -22,6 +22,7 @@ entries) assigned to that part."></head><body>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/n8layman/ecoreview/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -47,7 +48,14 @@ entries) assigned to that part.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">split_db</span><span class="op">(</span><span class="va">db_path</span>, <span class="va">n</span>, output_dir <span class="op">=</span> <span class="cn">NULL</span>, prefix <span class="op">=</span> <span class="cn">NULL</span>, seed <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">split_db</span><span class="op">(</span></span>
+<span>  <span class="va">db_path</span>,</span>
+<span>  <span class="va">n</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prefix <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  random <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -73,10 +81,15 @@ filename (without extension). Parts are named
 <code>{prefix}_part_01.db</code>, <code>{prefix}_part_02.db</code>, etc.</p></dd>
 
 
+<dt id="arg-random">random<a class="anchor" aria-label="anchor" href="#arg-random"></a></dt>
+<dd><p>Logical. If <code>FALSE</code> (default), documents are assigned in
+ascending <code>document_id</code> order so each part gets a consecutive block of
+IDs. If <code>TRUE</code>, documents are shuffled randomly before assignment.</p></dd>
+
+
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional integer seed for reproducible random assignment of
-documents to parts. If <code>NULL</code> (default), documents are assigned in
-their existing order.</p></dd>
+<dd><p>Optional integer seed for reproducible random assignment when
+<code>random = TRUE</code>. Ignored when <code>random = FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -92,11 +105,11 @@ their existing order.</p></dd>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Split into 4 equal parts for 4 reviewers</span></span></span>
+<span class="r-in"><span><span class="co"># Sequential split (default): part 1 gets lowest IDs, part 2 next block, etc.</span></span></span>
 <span class="r-in"><span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">split_db</span><span class="op">(</span><span class="st">"extractions.db"</span>, n <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Randomise assignment with a reproducible seed</span></span></span>
-<span class="r-in"><span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">split_db</span><span class="op">(</span><span class="st">"extractions.db"</span>, n <span class="op">=</span> <span class="fl">4</span>, seed <span class="op">=</span> <span class="fl">42</span>,</span></span>
+<span class="r-in"><span><span class="co"># Random split with a reproducible seed</span></span></span>
+<span class="r-in"><span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu">split_db</span><span class="op">(</span><span class="st">"extractions.db"</span>, n <span class="op">=</span> <span class="fl">4</span>, random <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">42</span>,</span></span>
 <span class="r-in"><span>                  output_dir <span class="op">=</span> <span class="st">"review_parts"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
