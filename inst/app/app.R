@@ -547,6 +547,16 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
           shiny::div(style = "padding: 15px; overflow-y: auto;",
             shiny::uiOutput("reasoningViewer")
           )
+        ),
+        shiny::tabPanel("Schema",
+          shiny::div(style = "padding: 15px; overflow-y: auto;",
+            shiny::uiOutput("schemaViewer")
+          )
+        ),
+        shiny::tabPanel("Extraction Prompt",
+          shiny::div(style = "padding: 15px; overflow-y: auto;",
+            shiny::uiOutput("extractionPromptViewer")
+          )
         )
       )
     ),
@@ -1391,6 +1401,68 @@ server <- function(input, output, session) {
     }, error = function(e) {
       shiny::p(paste("Error loading reasoning:", e$message), style = "color: #dc3545;")
     })
+  })
+
+  # Helper: find an ecoextract config file relative to the db location, then package default
+  .find_ecoextract_config <- function(filename, package_subdir = "extdata") {
+    db <- values$db_conn
+    search_dirs <- character(0)
+    if (nzchar(db)) {
+      db_dir <- dirname(normalizePath(db, mustWork = FALSE))
+      search_dirs <- c(
+        file.path(db_dir, "ecoextract", filename),
+        file.path(db_dir, paste0("ecoextract_", filename))
+      )
+    }
+    for (p in search_dirs) {
+      if (file.exists(p)) return(p)
+    }
+    pkg_path <- system.file(package_subdir, filename, package = "ecoextract")
+    if (nzchar(pkg_path) && file.exists(pkg_path)) return(pkg_path)
+    NULL
+  }
+
+  output$schemaViewer <- shiny::renderUI({
+    path <- .find_ecoextract_config("schema.json", "extdata")
+    if (is.null(path)) {
+      return(shiny::div(style = "color: #6c757d; padding: 20px; text-align: center;",
+        shiny::p("schema.json not found. Place it at ecoextract/schema.json relative to the database file.")
+      ))
+    }
+    json_text <- tryCatch(paste(readLines(path, warn = FALSE), collapse = "\n"),
+                          error = function(e) NULL)
+    if (is.null(json_text)) {
+      return(shiny::p("Error reading schema.json", style = "color: #dc3545;"))
+    }
+    shiny::div(
+      shiny::p(shiny::tags$small(style = "color: #6c757d;", path)),
+      shiny::tags$pre(
+        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.82em; overflow-x: auto;",
+        json_text
+      )
+    )
+  })
+
+  output$extractionPromptViewer <- shiny::renderUI({
+    path <- .find_ecoextract_config("extraction_prompt.md", "prompts")
+    if (is.null(path)) {
+      return(shiny::div(style = "color: #6c757d; padding: 20px; text-align: center;",
+        shiny::p("extraction_prompt.md not found. Place it at ecoextract/extraction_prompt.md relative to the database file.")
+      ))
+    }
+    md_text <- tryCatch(paste(readLines(path, warn = FALSE), collapse = "\n"),
+                        error = function(e) NULL)
+    if (is.null(md_text)) {
+      return(shiny::p("Error reading extraction_prompt.md", style = "color: #dc3545;"))
+    }
+    html <- commonmark::markdown_html(md_text)
+    shiny::div(
+      shiny::p(shiny::tags$small(style = "color: #6c757d;", path)),
+      shiny::div(
+        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.9em;",
+        shiny::HTML(html)
+      )
+    )
   })
 
   # Accept button handler - marks document as reviewed and saves edits

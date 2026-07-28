@@ -1,3 +1,10 @@
+# ecoreview 0.1.42
+
+## New features
+
+- **Schema tab**: new tab after Reasoning shows the `schema.json` used for extraction, found relative to the database file or falling back to ecoextract package defaults.
+- **Extraction Prompt tab**: new tab shows the `extraction_prompt.md` rendered as markdown, with the same file search logic.
+
 # ecoreview 0.1.41
 
 ## Improvements
