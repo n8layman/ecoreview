@@ -2125,8 +2125,13 @@ server <- function(input, output, session) {
           shiny::selectizeInput(
             "accuracy_col_filter",
             label = "Include columns (leave blank for all):",
-            choices = sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols)),
-            selected = sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols)),
+            choices = sort(names(acc$column_accuracy)),
+            selected = {
+              saved <- accuracy_col_selection()
+              avail <- sort(names(acc$column_accuracy))
+              default <- setdiff(avail, .accuracy_meta_cols)
+              if (is.null(saved)) default else intersect(saved, avail)
+            },
             multiple = TRUE,
             width = "100%",
             options = list(plugins = list("remove_button"),
@@ -2174,6 +2179,12 @@ server <- function(input, output, session) {
       }
     ))
   })
+
+  # Persists column picker selection across modal opens (NULL = all cols)
+  accuracy_col_selection <- shiny::reactiveVal(NULL)
+  shiny::observeEvent(input$accuracy_col_filter, {
+    accuracy_col_selection(input$accuracy_col_filter)
+  }, ignoreNULL = FALSE)
 
   # Accuracy metrics outputs
   accuracy_data <- shiny::reactive({
@@ -2265,9 +2276,10 @@ server <- function(input, output, session) {
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
-    all_cols <- setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
+    all_cols <- names(acc$column_accuracy)
     sel_cols <- input$accuracy_col_filter
-    if (is.null(sel_cols) || length(sel_cols) == 0) sel_cols <- all_cols
+    default  <- setdiff(all_cols, .accuracy_meta_cols)
+    if (is.null(sel_cols) || length(sel_cols) == 0) sel_cols <- default
     sel_cols <- intersect(sel_cols, all_cols)
 
     if (length(sel_cols) == length(all_cols)) {
@@ -2373,10 +2385,11 @@ server <- function(input, output, session) {
     shiny::req(acc$verified_documents > 0)
     shiny::req(length(acc$column_accuracy) > 0)
 
-    show_cols <- setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
     sel <- input$accuracy_col_filter
-    if (!is.null(sel) && length(sel) > 0) {
-      show_cols <- intersect(sel, show_cols)
+    show_cols <- if (!is.null(sel) && length(sel) > 0) {
+      intersect(sel, names(acc$column_accuracy))
+    } else {
+      setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
     }
     shiny::req(length(show_cols) > 0)
 
@@ -2444,7 +2457,13 @@ server <- function(input, output, session) {
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
-    visible_edits <- acc$column_edits[!names(acc$column_edits) %in% .accuracy_meta_cols]
+    sel <- input$accuracy_col_filter
+    edits_pool <- if (!is.null(sel) && length(sel) > 0) {
+      acc$column_edits[names(acc$column_edits) %in% sel]
+    } else {
+      acc$column_edits[!names(acc$column_edits) %in% .accuracy_meta_cols]
+    }
+    visible_edits <- edits_pool
     if (length(visible_edits) == 0) {
       return(data.frame(Column = "No edits recorded", `Edit Count` = 0, check.names = FALSE))
     }
@@ -2468,9 +2487,12 @@ server <- function(input, output, session) {
       acc <- accuracy_data()
       shiny::req(acc$verified_documents > 0)
 
-      all_data_cols <- sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols))
       sel <- input$accuracy_col_filter
-      export_cols   <- if (!is.null(sel) && length(sel) > 0) intersect(sel, all_data_cols) else all_data_cols
+      export_cols <- if (!is.null(sel) && length(sel) > 0) {
+        intersect(sel, names(acc$column_accuracy))
+      } else {
+        setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
+      }
       exp_col_acc   <- acc$column_accuracy[export_cols]
       exp_col_edits <- acc$column_edits[names(acc$column_edits) %in% export_cols]
 
