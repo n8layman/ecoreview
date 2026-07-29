@@ -1,3 +1,9 @@
+# ecoreview 0.1.43
+
+## New features
+
+- **Field-level column filter in accuracy modal**: a column picker in the Field-Level Accuracy section lets reviewers select a subset of columns (e.g. only the 5 key fields). Precision, recall, F1, and counts update to reflect the selected columns only. All columns are selected by default.
+
 # ecoreview 0.1.42
 
 ## New features

@@ -2115,6 +2115,16 @@ server <- function(input, output, session) {
           shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
             "Of the fields extracted, how many were correct?"
           ),
+          shiny::selectizeInput(
+            "accuracy_col_filter",
+            label = "Include columns (leave blank for all):",
+            choices = names(acc$column_accuracy),
+            selected = names(acc$column_accuracy),
+            multiple = TRUE,
+            width = "100%",
+            options = list(plugins = list("remove_button"),
+                           placeholder = "Select columns to include...")
+          ),
           shiny::fluidRow(
             shiny::column(6,
               shiny::tableOutput("fieldMetricsTable")
@@ -2248,21 +2258,54 @@ server <- function(input, output, session) {
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
+    all_cols <- names(acc$column_accuracy)
+    sel_cols <- input$accuracy_col_filter
+    if (is.null(sel_cols) || length(sel_cols) == 0) sel_cols <- all_cols
+    sel_cols <- intersect(sel_cols, all_cols)
+
+    if (length(sel_cols) == length(all_cols)) {
+      fp  <- acc$field_precision
+      fr  <- acc$field_recall
+      ff1 <- acc$field_f1
+      tf  <- acc$total_fields
+      cf  <- acc$correct_fields
+    } else {
+      n_sel       <- length(sel_cols)
+      sel_edits   <- sum(acc$column_edits[names(acc$column_edits) %in% sel_cols], na.rm = TRUE)
+      records_found <- acc$model_extracted - acc$deleted
+      tf          <- acc$model_extracted * n_sel
+      cf          <- tf - (acc$deleted * n_sel) - sel_edits
+      true_fields <- (records_found + acc$human_added) * n_sel
+      fp  <- if (tf > 0) cf / tf else NA_real_
+      fr  <- if (true_fields > 0) cf / true_fields else NA_real_
+      ff1 <- if (!is.na(fp) && !is.na(fr) && (fp + fr) > 0) {
+        2 * fp * fr / (fp + fr)
+      } else NA_real_
+    }
+
+    fmt_pct <- function(x) if (is.na(x)) "N/A" else sprintf("%.1f%%", x * 100)
+
     data.frame(
       Metric = c(
-        "Field Precision",
-        "Field Recall",
-        "Field F1 Score",
+        if (length(sel_cols) < length(all_cols))
+          paste0("Field Precision (", length(sel_cols), " cols)")
+        else "Field Precision",
+        if (length(sel_cols) < length(all_cols))
+          paste0("Field Recall (", length(sel_cols), " cols)")
+        else "Field Recall",
+        if (length(sel_cols) < length(all_cols))
+          paste0("Field F1 Score (", length(sel_cols), " cols)")
+        else "Field F1 Score",
         "Total Fields",
         "Correct Fields",
         "Records with Edits"
       ),
       Value = c(
-        sprintf("%.1f%%", acc$field_precision * 100),
-        sprintf("%.1f%%", acc$field_recall * 100),
-        sprintf("%.1f%%", acc$field_f1 * 100),
-        as.character(acc$total_fields),
-        as.character(acc$correct_fields),
+        fmt_pct(fp),
+        fmt_pct(fr),
+        fmt_pct(ff1),
+        as.character(tf),
+        as.character(cf),
         as.character(acc$records_with_edits)
       ),
       stringsAsFactors = FALSE
