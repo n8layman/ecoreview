@@ -1663,6 +1663,8 @@ server <- function(input, output, session) {
 
   .wide_record_cols <- c("all_supporting_source_sentences", "extraction_reasoning",
                          "refinement_reasoning")
+  # Record metadata columns that should not appear in accuracy calculations or column picker
+  .accuracy_meta_cols <- c("prompt_hash")
 
   # Records CSV export - all records joined with document metadata, wide columns dropped
   output$exportRecordsBtn <- shiny::downloadHandler(
@@ -2123,8 +2125,8 @@ server <- function(input, output, session) {
           shiny::selectizeInput(
             "accuracy_col_filter",
             label = "Include columns (leave blank for all):",
-            choices = names(acc$column_accuracy),
-            selected = names(acc$column_accuracy),
+            choices = setdiff(names(acc$column_accuracy), .accuracy_meta_cols),
+            selected = setdiff(names(acc$column_accuracy), .accuracy_meta_cols),
             multiple = TRUE,
             width = "100%",
             options = list(plugins = list("remove_button"),
@@ -2263,7 +2265,7 @@ server <- function(input, output, session) {
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
-    all_cols <- names(acc$column_accuracy)
+    all_cols <- setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
     sel_cols <- input$accuracy_col_filter
     if (is.null(sel_cols) || length(sel_cols) == 0) sel_cols <- all_cols
     sel_cols <- intersect(sel_cols, all_cols)
@@ -2371,9 +2373,16 @@ server <- function(input, output, session) {
     shiny::req(acc$verified_documents > 0)
     shiny::req(length(acc$column_accuracy) > 0)
 
+    show_cols <- setdiff(names(acc$column_accuracy), .accuracy_meta_cols)
+    sel <- input$accuracy_col_filter
+    if (!is.null(sel) && length(sel) > 0) {
+      show_cols <- intersect(sel, show_cols)
+    }
+    shiny::req(length(show_cols) > 0)
+
     col_acc_df <- data.frame(
-      Column = names(acc$column_accuracy),
-      Accuracy = acc$column_accuracy * 100,
+      Column = show_cols,
+      Accuracy = acc$column_accuracy[show_cols] * 100,
       stringsAsFactors = FALSE
     )
 
@@ -2435,14 +2444,15 @@ server <- function(input, output, session) {
     acc <- accuracy_data()
     shiny::req(acc$verified_documents > 0)
 
-    if (length(acc$column_edits) == 0) {
+    visible_edits <- acc$column_edits[!names(acc$column_edits) %in% .accuracy_meta_cols]
+    if (length(visible_edits) == 0) {
       return(data.frame(Column = "No edits recorded", `Edit Count` = 0, check.names = FALSE))
     }
 
     col_edits_df <- data.frame(
-      Column = names(acc$column_edits),
-      `Edit Count` = acc$column_edits,
-      `Accuracy` = sprintf("%.1f%%", acc$column_accuracy[names(acc$column_edits)] * 100),
+      Column = names(visible_edits),
+      `Edit Count` = visible_edits,
+      `Accuracy` = sprintf("%.1f%%", acc$column_accuracy[names(visible_edits)] * 100),
       check.names = FALSE
     )
     col_edits_df <- col_edits_df[order(-col_edits_df$`Edit Count`), ]
@@ -2458,6 +2468,9 @@ server <- function(input, output, session) {
       acc <- accuracy_data()
       shiny::req(acc$verified_documents > 0)
 
+      exp_col_acc   <- acc$column_accuracy[!names(acc$column_accuracy) %in% .accuracy_meta_cols]
+      exp_col_edits <- acc$column_edits[!names(acc$column_edits) %in% .accuracy_meta_cols]
+
       # Combine all metrics into a single data frame
       metrics_df <- data.frame(
         Section = c(
@@ -2470,9 +2483,9 @@ server <- function(input, output, session) {
           # Summary Counts
           rep("Summary", 7),
           # Column Accuracy
-          rep("Column Accuracy", length(acc$column_accuracy)),
+          rep("Column Accuracy", length(exp_col_acc)),
           # Column Edits
-          rep("Column Edits", length(acc$column_edits))
+          rep("Column Edits", length(exp_col_edits))
         ),
         Metric = c(
           # Record Detection
@@ -2488,8 +2501,8 @@ server <- function(input, output, session) {
           "Verified Documents", "Total Records", "Model Extracted",
           "Records Found", "Records Missed", "Records Hallucinated", "Records with Edits",
           # Columns
-          names(acc$column_accuracy),
-          names(acc$column_edits)
+          names(exp_col_acc),
+          names(exp_col_edits)
         ),
         Value = c(
           # Record Detection
@@ -2521,8 +2534,8 @@ server <- function(input, output, session) {
           as.character(acc$records_hallucinated),
           as.character(acc$records_with_edits),
           # Columns
-          sprintf("%.1f%%", acc$column_accuracy * 100),
-          as.character(acc$column_edits)
+          sprintf("%.1f%%", exp_col_acc * 100),
+          as.character(exp_col_edits)
         ),
         stringsAsFactors = FALSE
       )
