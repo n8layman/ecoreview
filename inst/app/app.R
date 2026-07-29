@@ -2125,8 +2125,8 @@ server <- function(input, output, session) {
           shiny::selectizeInput(
             "accuracy_col_filter",
             label = "Include columns (leave blank for all):",
-            choices = setdiff(names(acc$column_accuracy), .accuracy_meta_cols),
-            selected = setdiff(names(acc$column_accuracy), .accuracy_meta_cols),
+            choices = sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols)),
+            selected = sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols)),
             multiple = TRUE,
             width = "100%",
             options = list(plugins = list("remove_button"),
@@ -2386,7 +2386,7 @@ server <- function(input, output, session) {
       stringsAsFactors = FALSE
     )
 
-    col_acc_df <- col_acc_df[order(col_acc_df$Accuracy), ]
+    col_acc_df <- col_acc_df[order(col_acc_df$Column, decreasing = TRUE), ]
     col_acc_df$Column <- factor(col_acc_df$Column, levels = col_acc_df$Column)
 
     # Use log scale for viridis color, focusing on 50-100% range
@@ -2468,8 +2468,11 @@ server <- function(input, output, session) {
       acc <- accuracy_data()
       shiny::req(acc$verified_documents > 0)
 
-      exp_col_acc   <- acc$column_accuracy[!names(acc$column_accuracy) %in% .accuracy_meta_cols]
-      exp_col_edits <- acc$column_edits[!names(acc$column_edits) %in% .accuracy_meta_cols]
+      all_data_cols <- sort(setdiff(names(acc$column_accuracy), .accuracy_meta_cols))
+      sel <- input$accuracy_col_filter
+      export_cols   <- if (!is.null(sel) && length(sel) > 0) intersect(sel, all_data_cols) else all_data_cols
+      exp_col_acc   <- acc$column_accuracy[export_cols]
+      exp_col_edits <- acc$column_edits[names(acc$column_edits) %in% export_cols]
 
       # Combine all metrics into a single data frame
       metrics_df <- data.frame(
