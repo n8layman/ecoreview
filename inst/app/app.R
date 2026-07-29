@@ -1459,7 +1459,12 @@ server <- function(input, output, session) {
     shiny::div(
       shiny::p(shiny::tags$small(style = "color: #6c757d;", path)),
       shiny::div(
-        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.9em;",
+        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.9em; color: #212529;",
+        shiny::tags$style(shiny::HTML(
+          "#extractionPromptViewer h1,#extractionPromptViewer h2,#extractionPromptViewer h3,
+           #extractionPromptViewer h4,#extractionPromptViewer h5,#extractionPromptViewer h6
+           { color: #212529 !important; }"
+        )),
         shiny::HTML(html)
       )
     )
