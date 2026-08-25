@@ -724,17 +724,11 @@ server <- function(input, output, session) {
     if (!is.null(values$pdf_dir)) {
       values$pdf_dir
     } else {
-      root <- tryCatch(here::here(), error = function(e) NULL)
-      candidate <- if (!is.null(root)) file.path(root, "pdfs") else NULL
-      if (!is.null(candidate) && dir.exists(candidate)) {
-        paste0("Auto: ", candidate)
-      } else if (!is.null(values$db_conn) && nzchar(values$db_conn)) {
-        db_pdfs <- file.path(dirname(values$db_conn), "pdfs")
-        if (dir.exists(db_pdfs)) paste0("Auto: ", db_pdfs)
-        else paste0("Auto: ", dirname(values$db_conn))
-      } else {
-        "Not set (automatic)"
-      }
+      base <- tryCatch(here::here(), error = function(e) NULL)
+      if (is.null(base) && !is.null(values$db_conn) && nzchar(values$db_conn))
+        base <- dirname(normalizePath(values$db_conn, mustWork = FALSE))
+      if (is.null(base)) base <- getwd()
+      paste0("Auto: ", base)
     }
   })
 
