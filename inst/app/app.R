@@ -677,9 +677,14 @@ server <- function(input, output, session) {
       file_selected <- shinyFiles::parseFilePaths(volumes, input$dbFileBrowse)
       if (nrow(file_selected) > 0) {
         db_path <- as.character(file_selected$datapath)
+        if (isTRUE(input$dbCopyModal)) {
+          tmp <- tempfile(fileext = paste0(".", tools::file_ext(db_path)))
+          file.copy(db_path, tmp)
+          db_path <- tmp
+        }
         shiny::updateSelectInput(session, "document_select", choices = c("Loading..." = ""), selected = "")
         values$db_conn <- db_path
-        values$db_name <- basename(db_path)
+        values$db_name <- basename(as.character(file_selected$datapath))
         values$db_reload_trigger <- values$db_reload_trigger + 1
         values$document_id <- NULL
         values$markdown_text <- NULL
@@ -689,7 +694,7 @@ server <- function(input, output, session) {
         values$col_order <- NULL
         values$hidden_cols <- character(0)
         shiny::removeModal()
-        shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
+        shiny::showNotification(paste("Connected to database:", values$db_name), type = "message")
       }
     }
   }, ignoreInit = TRUE)
@@ -779,9 +784,14 @@ server <- function(input, output, session) {
       file_selected <- shinyFiles::parseFilePaths(volumes, input$dbFileBrowseChange)
       if (nrow(file_selected) > 0) {
         db_path <- as.character(file_selected$datapath)
+        if (isTRUE(input$dbCopyChange)) {
+          tmp <- tempfile(fileext = paste0(".", tools::file_ext(db_path)))
+          file.copy(db_path, tmp)
+          db_path <- tmp
+        }
         shiny::updateSelectInput(session, "document_select", choices = c("Loading..." = ""), selected = "")
         values$db_conn <- db_path
-        values$db_name <- basename(db_path)
+        values$db_name <- basename(as.character(file_selected$datapath))
         values$db_reload_trigger <- values$db_reload_trigger + 1
         values$document_id <- NULL
         values$markdown_text <- NULL
@@ -791,7 +801,7 @@ server <- function(input, output, session) {
         values$col_order <- NULL
         values$hidden_cols <- character(0)
         shiny::removeModal()
-        shiny::showNotification(paste("Connected to database:", basename(db_path)), type = "message")
+        shiny::showNotification(paste("Connected to database:", values$db_name), type = "message")
       }
     }
   }, ignoreInit = TRUE)
@@ -820,7 +830,7 @@ server <- function(input, output, session) {
         footer = NULL,
 
         shiny::div(style = "padding: 10px;",
-          shiny::h5("Option 1: Browse for Database File"),
+          shiny::h5("Browse for Database File"),
           shiny::div(style = "display: flex; gap: 10px; align-items: center;",
             shinyFiles::shinyFilesButton("dbFileBrowse", "Browse...",
                             title = "Select SQLite Database",
@@ -828,24 +838,20 @@ server <- function(input, output, session) {
                             class = "btn-primary"),
             shiny::textOutput("selectedDbPath", inline = TRUE)
           ),
-
-          shiny::hr(style = "margin: 20px 0;"),
-
-          shiny::h5("Option 2: Upload Database File"),
-          shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 10px; margin-bottom: 10px;",
-            shiny::tags$i(class = "fas fa-exclamation-triangle", style = "color: #856404; margin-right: 5px;"),
-            shiny::span(style = "color: #856404; font-size: 0.9em;",
-              shiny::strong("Warning:"), " Upload creates a temporary copy. Download the database when finished to save your changes."
+          shiny::div(style = "margin-top: 10px;",
+            shiny::checkboxInput("dbCopyModal", "Work on a temporary copy (edits won't affect the original)", value = FALSE)
+          ),
+          shiny::conditionalPanel(
+            condition = "input.dbCopyModal",
+            shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 8px 10px; font-size: 0.88em; color: #856404;",
+              shiny::tags$i(class = "fas fa-exclamation-triangle", style = "margin-right: 5px;"),
+              "Editing a copy. Use ", shiny::strong("Save Database"), " to download your changes."
             )
           ),
-          shiny::fileInput("dbFileModal", NULL,
-                    accept = c(".db", ".sqlite", ".sqlite3"),
-                    width = "100%",
-                    placeholder = "Choose .db, .sqlite, or .sqlite3 file"),
 
           shiny::hr(style = "margin: 20px 0;"),
 
-          shiny::h5("Option 3: Enter Database URL or Path"),
+          shiny::h5("Enter Database URL or Path"),
           shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
             "For remote databases (https://...) or if you prefer to enter a path manually."
           ),
@@ -945,16 +951,6 @@ server <- function(input, output, session) {
   output$documentSelected <- shiny::reactive(!is.null(values$document_id) && values$document_id != "")
   shiny::outputOptions(output, "documentSelected", suspendWhenHidden = FALSE)
 
-  # Handle database file upload from modal
-  shiny::observeEvent(input$dbFileModal, {
-    shiny::req(input$dbFileModal)
-    values$db_conn <- input$dbFileModal$datapath
-    values$db_name <- input$dbFileModal$name
-    values$col_order <- NULL
-    shiny::removeModal()
-    shiny::showNotification(paste("Connected to database:", input$dbFileModal$name), type = "message")
-  })
-
   # Handle database path/URL connection from modal
   shiny::observeEvent(input$connectPathBtn, {
     shiny::req(input$dbPathModal, nchar(trimws(input$dbPathModal)) > 0)
@@ -1002,7 +998,7 @@ server <- function(input, output, session) {
           )
         },
 
-        shiny::h5("Option 1: Browse for Database File"),
+        shiny::h5("Browse for Database File"),
         shiny::div(style = "display: flex; gap: 10px; align-items: center;",
           shinyFiles::shinyFilesButton("dbFileBrowseChange", "Browse...",
                           title = "Select SQLite Database",
@@ -1010,24 +1006,20 @@ server <- function(input, output, session) {
                           class = "btn-primary"),
           shiny::textOutput("selectedDbPathChange", inline = TRUE)
         ),
-
-        shiny::hr(style = "margin: 20px 0;"),
-
-        shiny::h5("Option 2: Upload Database File"),
-        shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 10px; margin-bottom: 10px;",
-          shiny::tags$i(class = "fas fa-exclamation-triangle", style = "color: #856404; margin-right: 5px;"),
-          shiny::span(style = "color: #856404; font-size: 0.9em;",
-            shiny::strong("Warning:"), " Upload creates a temporary copy. Download the database when finished to save your changes."
+        shiny::div(style = "margin-top: 10px;",
+          shiny::checkboxInput("dbCopyChange", "Work on a temporary copy (edits won't affect the original)", value = FALSE)
+        ),
+        shiny::conditionalPanel(
+          condition = "input.dbCopyChange",
+          shiny::div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 8px 10px; font-size: 0.88em; color: #856404;",
+            shiny::tags$i(class = "fas fa-exclamation-triangle", style = "margin-right: 5px;"),
+            "Editing a copy. Use ", shiny::strong("Save Database"), " to download your changes."
           )
         ),
-        shiny::fileInput("dbFileChange", NULL,
-                  accept = c(".db", ".sqlite", ".sqlite3"),
-                  width = "100%",
-                  placeholder = "Choose .db, .sqlite, or .sqlite3 file"),
 
         shiny::hr(style = "margin: 20px 0;"),
 
-        shiny::h5("Option 3: Enter Database URL or Path"),
+        shiny::h5("Enter Database URL or Path"),
         shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
           "For remote databases (https://...) or if you prefer to enter a path manually."
         ),
@@ -1053,21 +1045,6 @@ server <- function(input, output, session) {
         )
       )
     ))
-  })
-
-  # Handle file upload from change modal
-  shiny::observeEvent(input$dbFileChange, {
-    shiny::req(input$dbFileChange)
-    shiny::updateSelectInput(session, "document_select", choices = c("Loading..." = ""), selected = "")
-    values$db_conn <- input$dbFileChange$datapath
-    values$db_name <- input$dbFileChange$name
-    values$document_id <- NULL
-    values$markdown_text <- NULL
-    values$extracted_df <- NULL
-    values$original_df <- NULL
-    values$unsaved_changes <- list()
-    shiny::removeModal()
-    shiny::showNotification(paste("Connected to database:", input$dbFileChange$name), type = "message")
   })
 
   # Handle path connection from change modal
