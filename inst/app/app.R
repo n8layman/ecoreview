@@ -642,7 +642,8 @@ server <- function(input, output, session) {
     hidden_cols = character(0),
     doc_metadata = NULL,
     doc_metadata_original = NULL,
-    pdf_dir = getOption("ecoreview.pdf_dir", NULL)
+    pdf_dir = getOption("ecoreview.pdf_dir", NULL),
+    config_dir = NULL
   )
 
   # Explicit trigger for full table re-renders; cell edits use replaceData instead
@@ -720,7 +721,57 @@ server <- function(input, output, session) {
   }, ignoreInit = TRUE)
 
   output$selectedPdfDir <- shiny::renderText({
-    if (!is.null(values$pdf_dir)) values$pdf_dir else "Not set (automatic)"
+    if (!is.null(values$pdf_dir)) {
+      values$pdf_dir
+    } else {
+      root <- tryCatch(here::here(), error = function(e) NULL)
+      candidate <- if (!is.null(root)) file.path(root, "pdfs") else NULL
+      if (!is.null(candidate) && dir.exists(candidate)) {
+        paste0("Auto: ", candidate)
+      } else if (!is.null(values$db_conn) && nzchar(values$db_conn)) {
+        db_pdfs <- file.path(dirname(values$db_conn), "pdfs")
+        if (dir.exists(db_pdfs)) paste0("Auto: ", db_pdfs)
+        else paste0("Auto: ", dirname(values$db_conn))
+      } else {
+        "Not set (automatic)"
+      }
+    }
+  })
+
+  # Setup shinyDirs for config folder selection
+  shinyFiles::shinyDirChoose(input, "configDirBrowse", roots = volumes, session = session)
+
+  shiny::observeEvent(input$configDirBrowse, {
+    if (!is.integer(input$configDirBrowse)) {
+      dir_selected <- shinyFiles::parseDirPath(volumes, input$configDirBrowse)
+      if (length(dir_selected) > 0 && nzchar(dir_selected)) {
+        values$config_dir <- as.character(dir_selected)
+      }
+    }
+  }, ignoreInit = TRUE)
+
+  output$selectedConfigDir <- shiny::renderText({
+    if (!is.null(values$config_dir)) {
+      values$config_dir
+    } else {
+      # Show where schema.json would be found with current search order
+      candidates <- character(0)
+      root <- tryCatch(here::here(), error = function(e) NULL)
+      if (!is.null(root))
+        candidates <- c(candidates, file.path(root, "ecoextract", "schema.json"))
+      candidates <- c(candidates, file.path(getwd(), "ecoextract", "schema.json"))
+      if (!is.null(values$db_conn) && nzchar(values$db_conn))
+        candidates <- c(candidates,
+          file.path(dirname(values$db_conn), "ecoextract", "schema.json"))
+      found <- Filter(file.exists, unique(candidates))
+      if (length(found) > 0) {
+        paste0("Auto: ", dirname(found[[1]]))
+      } else {
+        pkg <- system.file("extdata", "schema.json", package = "ecoextract")
+        if (nzchar(pkg)) paste0("Auto: package default (", dirname(pkg), ")")
+        else "Not found"
+      }
+    }
   })
 
   # Setup shinyFiles for database file browsing in change modal
@@ -822,6 +873,20 @@ server <- function(input, output, session) {
                             title = "Select PDF Folder",
                             class = "btn-outline-secondary btn-sm"),
             shiny::textOutput("selectedPdfDir", inline = TRUE)
+          ),
+
+          shiny::hr(style = "margin: 20px 0;"),
+
+          shiny::h5("Config Folder (optional)"),
+          shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+            "Folder containing ", shiny::code("schema.json"), " and ", shiny::code("extraction_prompt.md"),
+            ". Leave blank to use automatic search (project root, database folder, package defaults)."
+          ),
+          shiny::div(style = "display: flex; gap: 10px; align-items: center;",
+            shinyFiles::shinyDirButton("configDirBrowse", "Browse...",
+                            title = "Select Config Folder",
+                            class = "btn-outline-secondary btn-sm"),
+            shiny::textOutput("selectedConfigDir", inline = TRUE)
           )
         )
       ))
@@ -977,6 +1042,20 @@ server <- function(input, output, session) {
                   width = "100%"),
         shiny::div(style = "margin-top: 10px;",
           shiny::actionButton("connectPathChangeBtn", "Connect", class = "btn-primary", style = "width: 100%;")
+        ),
+
+        shiny::hr(style = "margin: 20px 0;"),
+
+        shiny::h5("Config Folder (optional)"),
+        shiny::p(style = "font-size: 0.9em; color: #6c757d; margin-bottom: 10px;",
+          "Folder containing ", shiny::code("schema.json"), " and ", shiny::code("extraction_prompt.md"),
+          ". Leave blank to use automatic search."
+        ),
+        shiny::div(style = "display: flex; gap: 10px; align-items: center;",
+          shinyFiles::shinyDirButton("configDirBrowse", "Browse...",
+                          title = "Select Config Folder",
+                          class = "btn-outline-secondary btn-sm"),
+          shiny::textOutput("selectedConfigDir", inline = TRUE)
         )
       )
     ))
@@ -1411,6 +1490,15 @@ server <- function(input, output, session) {
   # 4. Package defaults
   .find_ecoextract_config <- function(filename, package_subdir = "extdata") {
     candidates <- character(0)
+
+    # Priority 0: explicitly specified config folder
+    cfg_dir <- values$config_dir
+    if (!is.null(cfg_dir) && nzchar(cfg_dir)) {
+      candidates <- c(candidates,
+        file.path(cfg_dir, filename),
+        file.path(cfg_dir, "ecoextract", filename)
+      )
+    }
 
     # Detect project root via here or .git/.Rproj walk-up
     project_root <- tryCatch(here::here(), error = function(e) NULL)
