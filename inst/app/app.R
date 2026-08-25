@@ -550,6 +550,9 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
         ),
         shiny::tabPanel("Schema",
           shiny::div(style = "padding: 15px; overflow-y: auto;",
+            shiny::radioButtons("schemaViewMode", NULL,
+              choices = c("Table" = "table", "Raw JSON" = "json"),
+              selected = "table", inline = TRUE),
             shiny::uiOutput("schemaViewer")
           )
         ),
@@ -1509,20 +1512,122 @@ server <- function(input, output, session) {
   output$schemaViewer <- shiny::renderUI({
     path <- .find_ecoextract_config("schema.json", "extdata")
     if (is.null(path)) {
-      return(shiny::div(style = "color: #6c757d; padding: 20px; text-align: center;",
+      return(shiny::div(style = "color:#6c757d;padding:20px;text-align:center;",
         shiny::p("schema.json not found. Place it at ecoextract/schema.json relative to the database file.")
       ))
     }
     json_text <- tryCatch(paste(readLines(path, warn = FALSE), collapse = "\n"),
                           error = function(e) NULL)
     if (is.null(json_text)) {
-      return(shiny::p("Error reading schema.json", style = "color: #dc3545;"))
+      return(shiny::p("Error reading schema.json", style = "color:#dc3545;"))
     }
+
+    path_line <- shiny::p(shiny::tags$small(style = "color:#6c757d;", path))
+
+    if (isTRUE(input$schemaViewMode == "json")) {
+      return(shiny::div(
+        path_line,
+        shiny::tags$pre(
+          style = "background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:15px;font-size:0.82em;overflow-x:auto;",
+          json_text
+        )
+      ))
+    }
+
+    schema <- tryCatch(jsonlite::fromJSON(json_text, simplifyVector = FALSE),
+                       error = function(e) NULL)
+    if (is.null(schema) || is.null(schema$properties)) {
+      return(shiny::div(path_line,
+        shiny::tags$pre(
+          style = "background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:15px;font-size:0.82em;overflow-x:auto;",
+          json_text
+        )
+      ))
+    }
+
+    first_type <- function(t) {
+      if (is.null(t)) return("any")
+      v <- setdiff(unlist(t), "null")
+      if (length(v) == 0) "null" else v[[1]]
+    }
+    type_color <- function(t) switch(t,
+      "string" = "#d1ecf1", "number" = "#d4edda", "integer" = "#d4edda",
+      "boolean" = "#fff3cd", "array" = "#e2d9f3", "object" = "#f8d7da", "#e9ecef"
+    )
+    enum_chips <- function(vals) {
+      if (is.null(vals)) return(NULL)
+      shiny::div(style = "margin-top:5px;",
+        lapply(vals, function(v) shiny::tags$span(
+          style = "display:inline-block;background:#dee2e6;border-radius:3px;padding:1px 6px;font-size:0.78em;margin:1px 2px 1px 0;",
+          if (is.null(v)) "null" else as.character(v)
+        ))
+      )
+    }
+
+    make_field_rows <- function(props, req_fields, key_fields, indent = FALSE) {
+      result <- list()
+      pad_l <- if (indent) "padding:6px 10px 6px 26px;" else "padding:7px 10px;"
+      for (nm in names(props)) {
+        prop  <- props[[nm]]
+        ftype <- first_type(prop$type)
+        fdesc <- if (!is.null(prop$description)) prop$description else ""
+        tlabel <- if (ftype == "array" && !is.null(prop$items$type))
+          paste0("array[", first_type(prop$items$type), "]") else ftype
+
+        row <- shiny::tags$tr(
+          shiny::tags$td(style = paste0(pad_l, "font-family:monospace;font-weight:", if (indent) "500" else "700", ";white-space:nowrap;vertical-align:top;"), nm),
+          shiny::tags$td(style = "padding:7px 10px;vertical-align:top;white-space:nowrap;",
+            shiny::tags$span(style = paste0("background:", type_color(ftype), ";border-radius:3px;padding:1px 7px;font-size:0.82em;font-family:monospace;"), tlabel)
+          ),
+          shiny::tags$td(style = "padding:7px 10px;color:#495057;font-size:0.9em;vertical-align:top;",
+            shiny::div(fdesc), enum_chips(prop$enum)
+          ),
+          shiny::tags$td(style = "padding:7px 10px;text-align:center;vertical-align:top;",
+            if (nm %in% req_fields) shiny::tags$span(style = "color:#dc3545;font-weight:bold;", "✓")
+            else shiny::tags$span(style = "color:#adb5bd;", "–")
+          ),
+          shiny::tags$td(style = "padding:7px 10px;text-align:center;vertical-align:top;",
+            if (nm %in% key_fields) shiny::tags$span(style = "color:#0d6efd;font-weight:bold;", "⚿")
+            else shiny::tags$span(style = "color:#adb5bd;", "–")
+          )
+        )
+        result <- c(result, list(row))
+
+        items_props <- prop$items$properties
+        if (!is.null(items_props)) {
+          sub_req <- as.character(unlist(prop$items$required %||% list()))
+          sub_key <- as.character(unlist(prop$items[["x-unique-fields"]] %||% list()))
+          result  <- c(result, make_field_rows(items_props, sub_req, sub_key, indent = TRUE))
+        }
+      }
+      result
+    }
+
+    top_req <- as.character(unlist(schema$required %||% list()))
+    top_key <- as.character(unlist(schema[["x-unique-fields"]] %||% list()))
+    all_rows <- make_field_rows(schema$properties, top_req, top_key)
+
     shiny::div(
-      shiny::p(shiny::tags$small(style = "color: #6c757d;", path)),
-      shiny::tags$pre(
-        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-size: 0.82em; overflow-x: auto;",
-        json_text
+      path_line,
+      if (!is.null(schema$description))
+        shiny::p(style = "color:#495057;margin-bottom:10px;", schema$description),
+      shiny::tags$style(shiny::HTML(
+        "#schemaTable tbody tr:nth-child(odd){background:#fff;}
+         #schemaTable tbody tr:nth-child(even){background:#f8f9fa;}"
+      )),
+      shiny::div(style = "overflow-x:auto;",
+        shiny::tags$table(id = "schemaTable", style = "width:100%;border-collapse:collapse;",
+          shiny::tags$thead(
+            shiny::tags$tr(style = "background:#e9ecef;border-bottom:2px solid #dee2e6;",
+              shiny::tags$th(style = "padding:8px 10px;text-align:left;", "Field"),
+              shiny::tags$th(style = "padding:8px 10px;text-align:left;", "Type"),
+              shiny::tags$th(style = "padding:8px 10px;text-align:left;", "Description"),
+              shiny::tags$th(style = "padding:8px 10px;text-align:center;", "Required"),
+              shiny::tags$th(style = "padding:8px 10px;text-align:center;", "Key")
+            )
+          ),
+          shiny::tags$tbody(all_rows)
+        )
       )
     )
   })

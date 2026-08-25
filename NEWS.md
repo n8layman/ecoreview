@@ -1,3 +1,9 @@
+# ecoreview 0.1.53
+
+## New features
+
+- **Schema rendered as table**: Schema tab shows a human-readable table with field name, type badge, description, required indicator, key indicator (from `x-unique-fields`), and enum chips. Toggle to raw JSON via radio buttons. Nested array-of-object fields are expanded with indentation.
+
 # ecoreview 0.1.43
 
 ## New features
