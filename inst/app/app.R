@@ -1404,19 +1404,44 @@ server <- function(input, output, session) {
   })
 
   # Helper: find an ecoextract config file relative to the db location, then package default
+  # Mirrors ecoextract::load_config_file priority order:
+  # 1. ecoextract/<file> relative to project root (here::here() walk-up)
+  # 2. ecoextract/<file> relative to db file directory
+  # 3. ecoextract_<file> in project root / db dir / getwd()
+  # 4. Package defaults
   .find_ecoextract_config <- function(filename, package_subdir = "extdata") {
+    candidates <- character(0)
+
+    # Detect project root via here or .git/.Rproj walk-up
+    project_root <- tryCatch(here::here(), error = function(e) NULL)
+    if (!is.null(project_root)) {
+      candidates <- c(candidates,
+        file.path(project_root, "ecoextract", filename),
+        file.path(project_root, paste0("ecoextract_", filename))
+      )
+    }
+
+    # getwd() — matches ecoextract's own priority-2 / priority-3 search
+    wd <- getwd()
+    candidates <- c(candidates,
+      file.path(wd, "ecoextract", filename),
+      file.path(wd, paste0("ecoextract_", filename))
+    )
+
+    # db file directory as further fallback
     db <- values$db_conn
-    search_dirs <- character(0)
     if (nzchar(db)) {
       db_dir <- dirname(normalizePath(db, mustWork = FALSE))
-      search_dirs <- c(
+      candidates <- c(candidates,
         file.path(db_dir, "ecoextract", filename),
         file.path(db_dir, paste0("ecoextract_", filename))
       )
     }
-    for (p in search_dirs) {
+
+    for (p in unique(candidates)) {
       if (file.exists(p)) return(p)
     }
+
     pkg_path <- system.file(package_subdir, filename, package = "ecoextract")
     if (nzchar(pkg_path) && file.exists(pkg_path)) return(pkg_path)
     NULL
