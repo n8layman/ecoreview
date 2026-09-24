@@ -38,10 +38,10 @@
 #' @examples
 #' \dontrun{
 #' # Run with defaults
-#' run_app()
+#' run_review_app()
 #'
 #' # Customize for a specific project with priority and visible columns
-#' run_app(
+#' run_review_app(
 #'   title = "ChiroScan: Bat Interaction Review",
 #'   app_name = "ChiroScan",
 #'   github_url = "https://github.com/n8layman/bat-interactions",
@@ -55,7 +55,7 @@
 #' }
 #'
 #' @export
-run_app <- function(
+run_review_app <- function(
   title = "EcoReview: Data Validation",
   app_name = "EcoReview",
   github_url = "https://github.com/n8layman/ecoreview",
@@ -97,9 +97,21 @@ run_app <- function(
   shiny::runApp(app_dir, launch.browser = TRUE, ...)
 }
 
+#' @description
+#' `run_app()` is a deprecated alias for `run_review_app()`, kept so existing
+#' scripts keep working. It was renamed so it cannot be masked by, or mask, a
+#' launcher in a sibling package such as `ecoeval::run_eval_app()`.
+#'
+#' @rdname run_review_app
+#' @export
+run_app <- function(...) {
+  lifecycle::deprecate_soft("0.1.55", "run_app()", "run_review_app()")
+  run_review_app(...)
+}
+
 #' Get ecoreview configuration option
 #'
-#' Helper function to retrieve configuration options set by run_app()
+#' Helper function to retrieve configuration options set by run_review_app()
 #'
 #' @param name Option name (without "ecoreview." prefix)
 #' @param default Default value if option is not set
@@ -140,14 +152,14 @@ find_project_root <- function(start_dir) {
 #'   \item The stored path as-is
 #'   \item Relative to the directory containing the \code{.db} file
 #'   \item Relative to the project root (found by walking up from the db dir)
-#'   \item Relative to the working directory when \code{run_app()} was called
+#'   \item Relative to the working directory when \code{run_review_app()} was called
 #'   \item \code{basename} resolved inside \code{pdf_dir} (explicit override)
 #' }
 #'
 #' @param stored_path File path as stored in the database
 #' @param db_conn Path to the \code{.db} file (used to anchor relative paths)
 #' @param pdf_dir Optional explicit PDF directory override
-#' @param user_wd Working directory captured at \code{run_app()} time
+#' @param user_wd Working directory captured at \code{run_review_app()} time
 #' @return Resolved absolute path, or \code{NULL} if not found
 #' @export
 resolve_pdf_path <- function(stored_path, db_conn, pdf_dir = NULL,
@@ -182,7 +194,7 @@ resolve_pdf_path <- function(stored_path, db_conn, pdf_dir = NULL,
     }
   }
 
-  # 5. Relative to run_app() working directory
+  # 5. Relative to run_review_app() working directory
   if (!is.null(user_wd)) {
     p <- try_path(file.path(user_wd, stored_path))
     if (!is.null(p)) return(normalizePath(p))

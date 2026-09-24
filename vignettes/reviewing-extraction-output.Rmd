@@ -34,7 +34,7 @@ The OCR panel shows the markdown text extracted from the paper by ohseer/Mistral
 
 **Evidence highlighting:** when you click a row in the records table, sentences from `all_supporting_source_sentences` are highlighted in orange in the OCR panel. Hovering a highlighted sentence shows a tooltip listing all evidence sentences for that row, with a ⚠️ warning on any sentence that could not be located in the OCR text.
 
-**PDF view:** click the **PDF** tab to switch to the embedded PDF viewer. The PDF path is resolved from the database; if it cannot be found, the viewer shows "PDF Not Available." Use `run_app(pdf_dir = "path/to/pdfs")` to point the app at a folder of PDFs when they are stored separately from the database.
+**PDF view:** click the **PDF** tab to switch to the embedded PDF viewer. The PDF path is resolved from the database; if it cannot be found, the viewer shows "PDF Not Available." Use `run_review_app(pdf_dir = "path/to/pdfs")` to point the app at a folder of PDFs when they are stored separately from the database.
 
 # Editing Records
 
@@ -82,10 +82,10 @@ Click **Columns** to open the column visibility panel. Drag column names between
 
 Column changes are display-only -- the underlying database is never modified.
 
-**Priority columns:** set `priority_cols` in `run_app()` to pin the most important columns to the left by default:
+**Priority columns:** set `priority_cols` in `run_review_app()` to pin the most important columns to the left by default:
 
 ```{r priority-cols}
-run_app(
+run_review_app(
   db_path = "records.db",
   priority_cols = c("Pathogen_Name", "Host_Name", "Detection_Result_Direction")
 )
@@ -94,7 +94,7 @@ run_app(
 **Visible columns:** set `visible_cols` to show only a subset on load:
 
 ```{r visible-cols}
-run_app(
+run_review_app(
   db_path = "records.db",
   visible_cols = c("Pathogen_Name", "Host_Name", "Observation_Type")
 )

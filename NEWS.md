@@ -1,3 +1,9 @@
+# ecoreview 0.1.55
+
+## Breaking changes (soft)
+
+- **`run_app()` renamed to `run_review_app()`** (#30): the launcher now has a package-specific name, matching `ecoeval::run_eval_app()`, so packages in the family can be attached together without one masking another's launcher. `run_app()` still works as a deprecated alias (soft deprecation via lifecycle) and forwards all arguments. README, vignettes and the pkgdown reference now use `run_review_app()`.
+
 # ecoreview 0.1.54
 
 ## New features

@@ -1,7 +1,7 @@
 # EcoReview: Ecological Data Review App
 # Generic review interface for human validation of extracted ecological interactions
 
-# Get configuration from options (set by run_app())
+# Get configuration from options (set by run_review_app())
 app_title <- getOption("ecoreview.title", "EcoReview: Data Validation")
 # Records column highlighted in the OCR viewer, and the shortest evidence highlighted
 evidence_col <- getOption("ecoreview.evidence_col", "all_supporting_source_sentences")
@@ -10,7 +10,7 @@ app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
 
-# Database path: optionally pre-set via run_app(db_path = ...)
+# Database path: optionally pre-set via run_review_app(db_path = ...)
 db_path  <- getOption("ecoreview.db_path", "")
 db_exists <- nzchar(db_path) && file.exists(db_path)
 
@@ -648,7 +648,7 @@ server <- function(input, output, session) {
   dt_proxy <- DT::dataTableProxy("interactiveTable")
 
   # Define volumes for shinyFiles
-  # Use the working directory captured by run_app(), or fall back to detection
+  # Use the working directory captured by run_review_app(), or fall back to detection
   user_wd <- getOption("ecoreview.user_working_dir", NULL)
 
   if (is.null(user_wd)) {
@@ -1942,7 +1942,7 @@ server <- function(input, output, session) {
         evidence_col_warned <<- TRUE
         shiny::showNotification(
           paste0("No '", evidence_col, "' column in these records, so nothing is highlighted ",
-                 "in the OCR text. Set evidence_col in run_app() to the evidence column."),
+                 "in the OCR text. Set evidence_col in run_review_app() to the evidence column."),
           type = "warning", duration = 10)
       }
       result <- tryCatch(

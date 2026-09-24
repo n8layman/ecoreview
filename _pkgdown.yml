@@ -54,7 +54,7 @@ reference:
   - title: App
     desc: Launch and configure the review application
     contents:
-      - run_app
+      - run_review_app
 
   - title: Database Splitting
     desc: Distribute and recombine databases for parallel review

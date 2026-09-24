@@ -62,7 +62,7 @@ devtools::install_github("n8layman/ecoreview")
 library(ecoreview)
 
 # Launch with defaults (looks for ecoextract_records.db in current directory)
-run_app()
+run_review_app()
 ```
 
 ### Customized Usage
@@ -71,7 +71,7 @@ run_app()
 library(ecoreview)
 
 # Launch with custom configuration
-run_app(
+run_review_app(
   title = "ChiroScan: Bat Interaction Review",
   app_name = "ChiroScan",
   github_url = "https://github.com/n8layman/bat-interactions",
@@ -86,7 +86,7 @@ show only the columns reviewers need. Neither parameter affects the underlying d
 they are display-only settings.
 
 ```r
-run_app(
+run_review_app(
   title = "ChiroScan: Bat Interaction Review",
   # Show these columns first (left-most), in this order
   priority_cols = c("Pathogen_Name", "Host_Name",
@@ -139,14 +139,14 @@ results <- process_documents(
 # 3. Review and validate the results
 renv::install("n8layman/ecoreview")
 library(ecoreview)
-run_app(db_path = "ecoextract_records.db")
+run_review_app(db_path = "ecoextract_records.db")
 ```
 
 See the [ecoextract documentation](https://github.com/n8layman/ecoextract) for complete workflow details, including API setup, custom schemas, and parallel processing.
 
 ## Parallel / Team Review
 
-`ecoreview::split_db()` divides a database into `n` roughly-equal part files so multiple reviewers can each work through their own subset independently. `ecoreview::combine_db()` merges the finished parts back into a single database, accepting either a directory path (auto-discovers `*_part_N.db` files) or an explicit vector of paths. Before writing any data, `combine_db()` validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in `run_app()` gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.
+`ecoreview::split_db()` divides a database into `n` roughly-equal part files so multiple reviewers can each work through their own subset independently. `ecoreview::combine_db()` merges the finished parts back into a single database, accepting either a directory path (auto-discovers `*_part_N.db` files) or an explicit vector of paths. Before writing any data, `combine_db()` validates that all parts share the same schema and errors with a clear message if they differ, preventing silent data corruption from mismatched versions. Opening the combined database in `run_review_app()` gives full accuracy metrics across all reviewers — verified documents, field-level edits, and deletion flags are all preserved exactly, so the accuracy modal reflects the complete picture of the review.
 
 ```r
 # Split into 4 sequential parts (lowest document IDs first) — written next to the source file
@@ -157,7 +157,7 @@ parts <- ecoreview::split_db("ecoextract_records.db", n = 4)
 parts <- ecoreview::split_db("ecoextract_records.db", n = 4, random = TRUE, seed = 42)
 
 # Each reviewer launches the app pointed at their own part
-ecoreview::run_app(db_path = "ecoextract_records_part_2.db")
+ecoreview::run_review_app(db_path = "ecoextract_records_part_2.db")
 
 # Once all reviewers are done, recombine (supply directory or explicit paths)
 ecoreview::combine_db(
