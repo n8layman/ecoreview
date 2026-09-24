@@ -31,6 +31,9 @@
 #'   highlighted. Lower it when evidence values are short (e.g. species codes);
 #'   matches must fall on word boundaries, so a short value is not highlighted
 #'   inside a longer word. Default 10.
+#' @param export_records_with_metadata If TRUE, the Records CSV export also
+#'   includes each record's document metadata columns (the metadata schema's
+#'   fields), giving one flat file. Default FALSE.
 #' @param ... Additional arguments passed to shiny::runApp()
 #'
 #' @return Launches the Shiny application (does not return)
@@ -66,6 +69,7 @@ run_review_app <- function(
   pdf_dir = NULL,
   evidence_col = "all_supporting_source_sentences",
   min_evidence_chars = 10,
+  export_records_with_metadata = FALSE,
   ...
 ) {
   # Store configuration in options for the app to access
@@ -84,7 +88,8 @@ run_review_app <- function(
     ecoreview.visible_cols = visible_cols,
     ecoreview.pdf_dir = pdf_dir,
     ecoreview.evidence_col = evidence_col,
-    ecoreview.min_evidence_chars = min_evidence_chars
+    ecoreview.min_evidence_chars = min_evidence_chars,
+    ecoreview.export_records_with_metadata = export_records_with_metadata
   )
 
   # Find the app directory

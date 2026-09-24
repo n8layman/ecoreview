@@ -6,6 +6,8 @@ app_title <- getOption("ecoreview.title", "EcoReview: Data Validation")
 # Records column highlighted in the OCR viewer, and the shortest evidence highlighted
 evidence_col <- getOption("ecoreview.evidence_col", "all_supporting_source_sentences")
 min_evidence_chars <- getOption("ecoreview.min_evidence_chars", 10)
+# Join document metadata columns onto the Records CSV export
+export_records_with_metadata <- isTRUE(getOption("ecoreview.export_records_with_metadata", FALSE))
 app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
@@ -1971,6 +1973,17 @@ server <- function(input, output, session) {
   # Record metadata columns that should not appear in accuracy calculations or column picker
   .accuracy_meta_cols <- c("prompt_hash")
 
+  # Document metadata columns for exports: the metadata schema's fields present
+  # in the documents table, or the old bibliographic list when no schema is found
+  .export_metadata_cols <- function(documents) {
+    schema <- metadata_schema()
+    cols <- if (!is.null(schema)) names(schema$fields) else
+      c("first_author_lastname", "publication_year", "title")
+    intersect(cols, names(documents))
+  }
+  .status_cols <- c("ocr_status", "metadata_status", "extraction_status",
+                    "refinement_status", "reviewed_at")
+
   # Records CSV export - all records joined with document metadata, wide columns dropped
   output$exportRecordsBtn <- shiny::downloadHandler(
     filename = function() {
@@ -1985,10 +1998,13 @@ server <- function(input, output, session) {
       }
       documents <- ecoextract::get_documents(db_conn = values$db_conn)
 
+      doc_cols <- c("document_id", "file_name", "file_path", "reviewed_at",
+                    if (export_records_with_metadata)
+                      setdiff(.export_metadata_cols(documents), names(records)))
       export_data <- records |>
         dplyr::select(-dplyr::any_of(.wide_record_cols)) |>
         dplyr::left_join(
-          documents |> dplyr::select(dplyr::any_of(c("document_id", "file_name", "file_path", "reviewed_at"))),
+          documents |> dplyr::select(dplyr::any_of(doc_cols)),
           by = "document_id"
         ) |>
         dplyr::arrange(document_id, record_id)
@@ -1998,17 +2014,17 @@ server <- function(input, output, session) {
     contentType = "text/csv"
   )
 
-  # Documents CSV export - key bibliographic fields and pipeline statuses only
+  # Documents CSV export - metadata schema fields and pipeline statuses
   output$exportDocsBtn <- shiny::downloadHandler(
     filename = function() {
       paste0(export_prefix, "_documents_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
     },
     content = function(file) {
       shiny::req(values$db_conn)
-      documents <- ecoextract::get_documents(db_conn = values$db_conn) |>
+      documents <- ecoextract::get_documents(db_conn = values$db_conn)
+      documents <- documents |>
         dplyr::select(dplyr::any_of(c(
-          "document_id", "file_name", "first_author_lastname", "publication_year", "title",
-          "ocr_status", "metadata_status", "extraction_status", "refinement_status"
+          "document_id", "file_name", .export_metadata_cols(documents), .status_cols
         )))
       readr::write_csv(documents, file)
     },

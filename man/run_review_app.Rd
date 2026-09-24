@@ -16,6 +16,7 @@ run_review_app(
   pdf_dir = NULL,
   evidence_col = "all_supporting_source_sentences",
   min_evidence_chars = 10,
+  export_records_with_metadata = FALSE,
   ...
 )
 
@@ -57,6 +58,10 @@ differently. Default \code{"all_supporting_source_sentences"}.}
 highlighted. Lower it when evidence values are short (e.g. species codes);
 matches must fall on word boundaries, so a short value is not highlighted
 inside a longer word. Default 10.}
+
+\item{export_records_with_metadata}{If TRUE, the Records CSV export also
+includes each record's document metadata columns (the metadata schema's
+fields), giving one flat file. Default FALSE.}
 
 \item{...}{Additional arguments passed to shiny::runApp()}
 }

@@ -2,6 +2,8 @@
 
 ## Bug fixes
 
+- **Exports follow the metadata schema** (#37): the Documents CSV export now contains `document_id`, `file_name`, every metadata schema field present in the `documents` table, then the step statuses and `reviewed_at`, instead of a fixed bibliographic list that dropped all of a custom schema's fields. Without a metadata schema it falls back to the old columns. Array and object fields export as their stored JSON text. New `run_review_app(export_records_with_metadata = TRUE)` also joins the metadata columns onto the Records export for a single flat file.
+
 - **Untouched metadata fields are no longer saved as edits** (#36): Verify skips any metadata input that still shows what was displayed for the stored value, before converting it back to storage form. Previously a string-array field whose items had surrounding whitespace or embedded newlines changed on the display-then-parse round trip (items trimmed or split) and was sent to `save_document()` as an edit, which ecoextract 0.1.25+ records as a reviewer edit and locks against later metadata runs.
 
 # ecoreview 0.1.56
