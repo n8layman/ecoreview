@@ -23,6 +23,14 @@
 #'   is launched from a different working directory. If the path stored in
 #'   the database does not resolve, the app falls back to looking for the
 #'   file's basename here. NULL (default) uses the path stored in the database.
+#' @param evidence_col Name of the records column whose values are highlighted
+#'   in the OCR viewer when a row is selected: a JSON array of strings, or a
+#'   single string. Use when the extraction schema names its evidence field
+#'   differently. Default \code{"all_supporting_source_sentences"}.
+#' @param min_evidence_chars Evidence shorter than this many characters is not
+#'   highlighted. Lower it when evidence values are short (e.g. species codes);
+#'   matches must fall on word boundaries, so a short value is not highlighted
+#'   inside a longer word. Default 10.
 #' @param ... Additional arguments passed to shiny::runApp()
 #'
 #' @return Launches the Shiny application (does not return)
@@ -56,6 +64,8 @@ run_app <- function(
   priority_cols = NULL,
   visible_cols = NULL,
   pdf_dir = NULL,
+  evidence_col = "all_supporting_source_sentences",
+  min_evidence_chars = 10,
   ...
 ) {
   # Store configuration in options for the app to access
@@ -72,7 +82,9 @@ run_app <- function(
     ecoreview.user_working_dir = user_wd,
     ecoreview.priority_cols = priority_cols,
     ecoreview.visible_cols = visible_cols,
-    ecoreview.pdf_dir = pdf_dir
+    ecoreview.pdf_dir = pdf_dir,
+    ecoreview.evidence_col = evidence_col,
+    ecoreview.min_evidence_chars = min_evidence_chars
   )
 
   # Find the app directory

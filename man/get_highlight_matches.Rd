@@ -4,7 +4,12 @@
 \alias{get_highlight_matches}
 \title{Get highlight match segments for client-side marking}
 \usage{
-get_highlight_matches(html, evidence, similarity_threshold = 0.7)
+get_highlight_matches(
+  html,
+  evidence,
+  similarity_threshold = 0.7,
+  min_evidence_chars = 10
+)
 }
 \arguments{
 \item{html}{Rendered HTML string to search within}
@@ -12,6 +17,9 @@ get_highlight_matches(html, evidence, similarity_threshold = 0.7)
 \item{evidence}{Character vector of evidence sentences to match}
 
 \item{similarity_threshold}{Minimum similarity score (default 0.7)}
+
+\item{min_evidence_chars}{Evidence shorter than this many characters is
+not highlighted (default 10)}
 }
 \value{
 List of lists, each with \code{text}, \code{bg_color}, \code{border_color}

@@ -3,6 +3,9 @@
 
 # Get configuration from options (set by run_app())
 app_title <- getOption("ecoreview.title", "EcoReview: Data Validation")
+# Records column highlighted in the OCR viewer, and the shortest evidence highlighted
+evidence_col <- getOption("ecoreview.evidence_col", "all_supporting_source_sentences")
+min_evidence_chars <- getOption("ecoreview.min_evidence_chars", 10)
 app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
@@ -522,16 +525,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
               shiny::p(style = "color: #6c757d; font-size: 0.9em; margin-bottom: 15px;",
                 "Edit the paper metadata below. Changes are saved when you click 'Verify Records'."),
               shiny::div(style = "background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px;",
-                shiny::textInput("docTitle", "Title", value = "", width = "100%"),
-                shiny::textInput("docAuthors", "Authors", value = "", width = "100%", placeholder = "Last, First; Last, First"),
-                shiny::fluidRow(
-                  shiny::column(4, shiny::numericInput("docYear", "Year", value = NA, min = 1800, max = 2100, width = "100%")),
-                  shiny::column(8, shiny::textInput("docDoi", "DOI", value = "", width = "100%"))
-                ),
-                shiny::fluidRow(
-                  shiny::column(8, shiny::textInput("docJournal", "Journal", value = "", width = "100%")),
-                  shiny::column(4, shiny::textInput("docVolume", "Vol/Issue", value = "", width = "100%"))
-                )
+                shiny::uiOutput("metadataFields")
               )
             ),
             shiny::conditionalPanel("!output.documentSelected",
@@ -1198,18 +1192,6 @@ server <- function(input, output, session) {
           if (nrow(doc_info) > 0) {
             values$doc_metadata <- doc_info
             values$doc_metadata_original <- doc_info
-            shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "" |> (\(x) if (is.na(x)) "" else x)())
-            authors_val <- doc_info$authors[1] %||% ""
-            if (is.na(authors_val)) authors_val <- ""
-            if (nchar(authors_val) > 0 && grepl("^\\[", authors_val)) {
-              authors_val <- tryCatch(paste(jsonlite::fromJSON(authors_val), collapse = "; "), error = function(e) authors_val)
-            }
-            shiny::updateTextInput(session, "docAuthors", value = authors_val)
-            shiny::updateNumericInput(session, "docYear", value = if (!is.na(doc_info$publication_year[1])) doc_info$publication_year[1] else NA)
-            shiny::updateTextInput(session, "docDoi", value = doc_info$doi[1] %||% "")
-            shiny::updateTextInput(session, "docJournal", value = doc_info$journal[1] %||% "")
-            vol_issue <- paste0(doc_info$volume[1] %||% "", if (!is.null(doc_info$issue[1]) && !is.na(doc_info$issue[1])) paste0("(", doc_info$issue[1], ")") else "")
-            shiny::updateTextInput(session, "docVolume", value = vol_issue)
           }
 
           tryCatch({
@@ -1278,18 +1260,6 @@ server <- function(input, output, session) {
       if (nrow(doc_info) > 0) {
         values$doc_metadata <- doc_info
         values$doc_metadata_original <- doc_info
-
-        shiny::updateTextInput(session, "docTitle", value = doc_info$title[1] %||% "")
-        authors_val <- doc_info$authors[1] %||% ""
-        if (nchar(authors_val) > 0 && grepl("^\\[", authors_val)) {
-          authors_val <- tryCatch(paste(jsonlite::fromJSON(authors_val), collapse = "; "), error = function(e) authors_val)
-        }
-        shiny::updateTextInput(session, "docAuthors", value = authors_val)
-        shiny::updateNumericInput(session, "docYear", value = if (!is.na(doc_info$publication_year[1])) doc_info$publication_year[1] else NA)
-        shiny::updateTextInput(session, "docDoi", value = doc_info$doi[1] %||% "")
-        shiny::updateTextInput(session, "docJournal", value = doc_info$journal[1] %||% "")
-        vol_issue <- paste0(doc_info$volume[1] %||% "", if (!is.null(doc_info$issue[1]) && !is.na(doc_info$issue[1])) paste0("(", doc_info$issue[1], ")") else "")
-        shiny::updateTextInput(session, "docVolume", value = vol_issue)
       }
     }, error = function(e) {
       shiny::showNotification(paste("Error loading document metadata:", e$message), type = "error")
@@ -1509,6 +1479,166 @@ server <- function(input, output, session) {
     NULL
   }
 
+  # ---- Document metadata (driven by the ecoextract metadata schema) ----
+  # Databases built with a custom metadata schema only have that schema's
+  # columns in `documents`, so the panel, saving, and record ID renaming all
+  # follow the schema rather than a fixed bibliographic field list.
+
+  # ecoextract internal, or NULL on versions that predate it
+  .ecoextract_fn <- function(name) {
+    ns <- tryCatch(asNamespace("ecoextract"), error = function(e) NULL)
+    if (!is.null(ns) && exists(name, envir = ns, inherits = FALSE)) get(name, envir = ns) else NULL
+  }
+
+  metadata_schema <- shiny::reactive({
+    values$config_dir
+    values$db_conn
+    path <- .find_ecoextract_config("metadata_schema.json", "extdata")
+    if (is.null(path)) return(NULL)
+    schema <- tryCatch(jsonlite::fromJSON(path, simplifyVector = FALSE), error = function(e) NULL)
+    if (is.null(schema)) return(NULL)
+
+    get_fields <- .ecoextract_fn("get_metadata_fields") %||% function(s) {
+      if (length(s$properties) != 1) stop("expected one object under 'properties'")
+      s$properties[[1]]$properties
+    }
+    fields <- tryCatch(get_fields(schema), error = function(e) NULL)
+    if (length(fields) == 0) return(NULL)
+
+    # Older schemas have no x-record-id-fields; ecoextract then used author + year
+    get_id_fields <- .ecoextract_fn("get_record_id_fields") %||% function(s) {
+      unlist(s$properties[[1]][["x-record-id-fields"]])
+    }
+    id_fields <- tryCatch(get_id_fields(schema), error = function(e) NULL)
+    if (length(id_fields) == 0) {
+      id_fields <- intersect(c("first_author_lastname", "publication_year"), names(fields))
+    }
+
+    list(path = path, fields = fields, id_fields = id_fields)
+  })
+
+  .meta_type <- function(def) {
+    t <- setdiff(unlist(def$type), "null")
+    if (length(t) == 0) "string" else t[[1]]
+  }
+
+  # Arrays of strings are edited one item per line; other arrays and objects as raw JSON
+  .meta_string_array <- function(def) {
+    identical(.meta_type(def), "array") && "string" %in% unlist(def$items$type)
+  }
+
+  .meta_input_id <- function(field) paste0("meta_", gsub("[^A-Za-z0-9_]", "_", field))
+
+  .meta_is_missing <- function(x) {
+    is.null(x) || length(x) == 0 || (is.atomic(x) && is.na(x[1])) ||
+      (is.character(x) && !nzchar(trimws(x[1])))
+  }
+
+  # Stored documents value -> input value
+  .meta_display <- function(value, def) {
+    type <- .meta_type(def)
+    if (.meta_is_missing(value)) return(if (type %in% c("integer", "number")) NA else "")
+    value <- value[1]
+    if (type == "boolean") return(if (tolower(as.character(value)) %in% c("1", "true")) "true" else "false")
+    if (.meta_string_array(def)) {
+      items <- tryCatch(jsonlite::fromJSON(as.character(value)), error = function(e) NULL)
+      if (is.character(items) && is.null(dim(items))) return(paste(items, collapse = "\n"))
+    }
+    if (type %in% c("integer", "number")) return(value)
+    as.character(value)
+  }
+
+  # Input value -> documents value (arrays and objects stored as JSON text)
+  .meta_storage <- function(field, value, def) {
+    if (.meta_is_missing(value)) return(NA)
+    type <- .meta_type(def)
+    if (.meta_string_array(def)) {
+      items <- trimws(strsplit(value, "\n", fixed = TRUE)[[1]])
+      items <- items[nzchar(items)]
+      if (length(items) == 0) return(NA)
+      return(as.character(jsonlite::toJSON(items)))
+    }
+    switch(type,
+      integer = as.integer(value),
+      number  = as.numeric(value),
+      boolean = as.integer(value == "true"),
+      array   = ,
+      object  = {
+        txt <- trimws(value)
+        if (!jsonlite::validate(txt)) stop("Metadata field '", field, "' must be valid JSON")
+        txt
+      },
+      as.character(value)
+    )
+  }
+
+  # Fallback copy of ecoextract:::build_record_id_prefix for versions without it
+  .build_record_id_prefix <- function(id_values) {
+    parts <- vapply(id_values, function(value) {
+      cleaned <- if (.meta_is_missing(value)) "" else gsub("[^A-Za-z0-9]", "", as.character(value))
+      if (nchar(cleaned) == 0) "Unknown" else cleaned
+    }, character(1))
+    paste0(paste(parts, collapse = "_"), "_1")
+  }
+
+  .meta_same <- function(a, b) {
+    if (.meta_is_missing(a) || .meta_is_missing(b)) return(.meta_is_missing(a) && .meta_is_missing(b))
+    identical(as.character(a[1]), as.character(b[1]))
+  }
+
+  # Schema fields that exist as columns for this document (bibliography is
+  # dropped from all_documents() because it is too large to edit here)
+  .meta_editable_fields <- function(schema, doc_info) {
+    if (is.null(schema) || is.null(doc_info)) return(list())
+    schema$fields[intersect(names(schema$fields), names(doc_info))]
+  }
+
+  .meta_input <- function(field, def, value) {
+    id <- .meta_input_id(field)
+    label <- shiny::tags$span(field,
+      if (field %in% metadata_schema()$id_fields)
+        shiny::tags$small(style = "color:#6c757d;font-weight:normal;", " (record ID)"))
+    title <- def$description %||% NULL
+    value <- .meta_display(value, def)
+    type <- .meta_type(def)
+    input <- if (type %in% c("integer", "number")) {
+      shiny::numericInput(id, label, value = value, step = if (type == "integer") 1 else NA, width = "100%")
+    } else if (type == "boolean") {
+      shiny::selectInput(id, label, choices = c("", "true", "false"), selected = value, width = "100%")
+    } else if (.meta_string_array(def)) {
+      shiny::textAreaInput(id, label, value = value, width = "100%",
+        rows = min(max(2, length(strsplit(value, "\n", fixed = TRUE)[[1]])), 8),
+        placeholder = "One item per line")
+    } else if (type %in% c("array", "object")) {
+      shiny::textAreaInput(id, label, value = value, width = "100%", rows = 3, placeholder = "JSON")
+    } else if (!is.null(def$enum)) {
+      shiny::selectInput(id, label, choices = unique(c("", value, unlist(def$enum))),
+                         selected = value, width = "100%")
+    } else {
+      shiny::textInput(id, label, value = value, width = "100%")
+    }
+    shiny::div(title = title, input)
+  }
+
+  output$metadataFields <- shiny::renderUI({
+    doc_info <- values$doc_metadata
+    schema <- metadata_schema()
+    if (is.null(schema)) {
+      return(shiny::p(style = "color:#6c757d;",
+        "metadata_schema.json not found. Place it at ecoextract/metadata_schema.json relative to the database file."))
+    }
+    fields <- .meta_editable_fields(schema, doc_info)
+    if (length(fields) == 0) {
+      return(shiny::p(style = "color:#6c757d;", "No metadata schema fields found in this database."))
+    }
+    shiny::tagList(
+      shiny::p(shiny::tags$small(style = "color:#6c757d;", schema$path)),
+      lapply(names(fields), function(f) .meta_input(f, fields[[f]], doc_info[[f]]))
+    )
+  })
+  # Render while the Metadata tab is hidden so inputs match the loaded document
+  shiny::outputOptions(output, "metadataFields", suspendWhenHidden = FALSE)
+
   output$schemaViewer <- shiny::renderUI({
     path <- .find_ecoextract_config("schema.json", "extdata")
     if (is.null(path)) {
@@ -1671,53 +1801,35 @@ server <- function(input, output, session) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), values$db_conn)
       on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-      vol_issue <- input$docVolume %||% ""
-      volume <- sub("\\(.*", "", vol_issue)
-      issue <- if (grepl("\\(", vol_issue)) sub(".*\\((.*)\\).*", "\\1", vol_issue) else NA
+      # Save only the schema fields the reviewer changed. A NULL input means the
+      # field was never rendered, so its stored value is left alone.
+      schema <- metadata_schema()
+      orig <- values$doc_metadata_original
+      fields <- .meta_editable_fields(schema, orig)
+      doc_metadata <- list()
+      for (f in names(fields)) {
+        value <- input[[.meta_input_id(f)]]
+        if (is.null(value)) next
+        new_value <- .meta_storage(f, value, fields[[f]])
+        if (!.meta_same(new_value, orig[[f]])) doc_metadata[[f]] <- new_value
+      }
 
-      authors_list <- if (nchar(input$docAuthors %||% "") > 0) {
-        trimws(strsplit(input$docAuthors, ";")[[1]])
-      } else character(0)
-      authors_json <- if (length(authors_list) > 0) jsonlite::toJSON(authors_list, auto_unbox = FALSE) else NA
+      # Rebuild record IDs the way ecoextract does when an x-record-id-fields value changed
+      if (length(intersect(names(doc_metadata), schema$id_fields)) > 0 &&
+          !is.null(values$extracted_df) && nrow(values$extracted_df) > 0) {
+        id_values <- lapply(schema$id_fields, function(f) {
+          v <- if (f %in% names(doc_metadata)) doc_metadata[[f]] else orig[[f]][1]
+          if (f == "file_name" && !.meta_is_missing(v)) tools::file_path_sans_ext(v) else v
+        })
+        build_prefix <- .ecoextract_fn("build_record_id_prefix") %||% .build_record_id_prefix
+        new_prefix <- build_prefix(id_values)
 
-      new_first_author_lastname <- if (length(authors_list) > 0) {
-        first_author <- authors_list[1]
-        if (grepl(",", first_author)) {
-          trimws(sub(",.*", "", first_author))
-        } else {
-          words <- strsplit(trimws(first_author), "\\s+")[[1]]
-          if (length(words) > 0) words[length(words)] else first_author
-        }
-      } else NA
+        for (i in seq_len(nrow(values$extracted_df))) {
+          old_id <- values$extracted_df$record_id[i]
+          if (is.na(old_id) || !grepl("_r[0-9]+$", old_id)) next
+          new_record_id <- paste0(new_prefix, sub(".*(_r[0-9]+)$", "\\1", old_id))
 
-      new_year <- if (!is.na(input$docYear) && input$docYear > 0) as.integer(input$docYear) else NA
-
-      orig_year <- values$doc_metadata_original$publication_year[1]
-      orig_author <- values$doc_metadata_original$first_author_lastname[1]
-
-      year_changed <- !identical(as.integer(new_year), as.integer(orig_year))
-      author_changed <- !identical(new_first_author_lastname, orig_author)
-
-      if ((year_changed || author_changed) && !is.null(values$extracted_df) && nrow(values$extracted_df) > 0) {
-        old_records <- values$extracted_df
-
-        for (i in seq_len(nrow(old_records))) {
-          old_id <- old_records$record_id[i]
-          parts <- strsplit(old_id, "_")[[1]]
-          if (length(parts) >= 4) {
-            combo_num <- parts[length(parts) - 1]
-            record_part <- parts[length(parts)]
-            record_num <- sub("^r", "", record_part)
-          } else {
-            combo_num <- "1"
-            record_num <- as.character(i)
-          }
-
-          author_part <- if (!is.na(new_first_author_lastname)) new_first_author_lastname else "Unknown"
-          year_part <- if (!is.na(new_year)) new_year else "NA"
-          new_record_id <- paste0(author_part, "_", year_part, "_", combo_num, "_r", record_num)
-
-          if (!is.na(old_id) && old_id != new_record_id) {
+          if (old_id != new_record_id) {
             DBI::dbExecute(conn, "UPDATE records SET record_id = ? WHERE document_id = ? AND record_id = ?",
                           params = list(new_record_id, doc_id_int, old_id))
 
@@ -1725,19 +1837,7 @@ server <- function(input, output, session) {
             values$original_df$record_id[i] <- new_record_id
           }
         }
-
       }
-
-      doc_metadata <- list(
-        title = if (nchar(input$docTitle %||% "") > 0) input$docTitle else NA,
-        authors = authors_json,
-        publication_year = new_year,
-        first_author_lastname = new_first_author_lastname,
-        doi = if (nchar(input$docDoi %||% "") > 0) input$docDoi else NA,
-        journal = if (nchar(input$docJournal %||% "") > 0) input$docJournal else NA,
-        volume = if (nchar(volume) > 0) volume else NA,
-        issue = if (!is.na(issue) && nchar(issue) > 0) issue else NA
-      )
 
       # Always diff against a fresh DB read so stale in-memory original_df
       # (e.g. after a previous verify or a reactive reset) cannot cause missed
@@ -1757,6 +1857,9 @@ server <- function(input, output, session) {
           original_df = fresh_original_df,
           db_conn = conn
         ),
+        # Newer ecoextract builds IDs for added records from the metadata schema
+        if ("metadata_schema_file" %in% names(formals(ecoextract::save_document)) && !is.null(schema))
+          list(metadata_schema_file = schema$path),
         doc_metadata
       ))
 
@@ -1773,12 +1876,8 @@ server <- function(input, output, session) {
         shiny::showNotification(paste("Warning: could not reload records:", e$message), type = "warning", duration = 5)
       })
 
-      values$doc_metadata_original <- values$doc_metadata_original |>
-        dplyr::mutate(
-          publication_year = new_year,
-          first_author_lastname = new_first_author_lastname,
-          reviewed_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        )
+      for (f in names(doc_metadata)) values$doc_metadata_original[[f]] <- doc_metadata[[f]]
+      values$doc_metadata_original$reviewed_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
       values$edit_trigger <- values$edit_trigger + 1
 
@@ -1805,6 +1904,9 @@ server <- function(input, output, session) {
     shiny::req(values$markdown_text)
     ecoreview::render_tensorlake_html(values$markdown_text)
   })
+
+  # Warn once per session when the records have no evidence column
+  evidence_col_warned <- FALSE
 
   # Holds the HTML with evidence spans injected (updated once per document)
   ocr_display_html <- shiny::reactiveVal(NULL)
@@ -1836,8 +1938,16 @@ server <- function(input, output, session) {
     session$onFlushed(function() {
       # Skip if the user switched to a different document before we ran
       if (!identical(shiny::isolate(values$document_id), doc_id)) return()
+      if (!evidence_col %in% names(df) && !evidence_col_warned) {
+        evidence_col_warned <<- TRUE
+        shiny::showNotification(
+          paste0("No '", evidence_col, "' column in these records, so nothing is highlighted ",
+                 "in the OCR text. Set evidence_col in run_app() to the evidence column."),
+          type = "warning", duration = 10)
+      }
       result <- tryCatch(
-        ecoreview::build_evidence_index(base_html, df),
+        ecoreview::build_evidence_index(base_html, df, evidence_col = evidence_col,
+                                        min_evidence_chars = min_evidence_chars),
         error = function(e) list(html = base_html, row_map = list(),
                                  unmatched_by_row = list(),
                                  sentence_tier_map = list())
@@ -2013,11 +2123,13 @@ server <- function(input, output, session) {
         # Sentences column edited — rebuild OCR evidence index so highlighting
         # reflects the new sentences.  Any other column edit leaves the OCR
         # HTML untouched.
-        if (isTRUE(col_name == "all_supporting_source_sentences")) {
+        if (isTRUE(col_name == evidence_col)) {
           base_html <- shiny::isolate(ocr_base_html())
           if (!is.null(base_html)) {
             ocr_result <- tryCatch(
-              ecoreview::build_evidence_index(base_html, values$extracted_df),
+              ecoreview::build_evidence_index(base_html, values$extracted_df,
+                                              evidence_col = evidence_col,
+                                              min_evidence_chars = min_evidence_chars),
               error = function(e) list(html = base_html, row_map = list(),
                                        unmatched_by_row = list())
             )
@@ -2051,12 +2163,9 @@ server <- function(input, output, session) {
       if (!is.na(selected_row) && selected_row <= nrow(df)) {
         row_data <- df[selected_row, ]
         sentences <- character(0)
-        if ("all_supporting_source_sentences" %in% names(row_data) &&
-            !is.na(row_data$all_supporting_source_sentences)) {
-          sentences <- tryCatch(
-            jsonlite::fromJSON(row_data$all_supporting_source_sentences),
-            error = function(e) as.character(row_data$all_supporting_source_sentences)
-          )
+        if (evidence_col %in% names(row_data) && !is.na(row_data[[evidence_col]][[1]])) {
+          raw <- as.character(row_data[[evidence_col]][[1]])
+          sentences <- tryCatch(as.character(jsonlite::fromJSON(raw)), error = function(e) raw)
         }
         values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
         should_scroll <- !identical(selected_row, last_scrolled_row)

@@ -98,13 +98,19 @@ html_to_plain_text <- function(html_text) {
 #' adjacent characters so OCR line-break hyphens ("amphis-tome") match the
 #' evidence word ("amphistome").  Search is case-insensitive.
 #'
+#' The match must start and end on word boundaries, so a short value such as
+#' "Mus" does not match inside "Musculature".  Evidence of 10 or more
+#' characters falls back to a match without boundaries, since longer quotes
+#' can legitimately start or end mid-word.
+#'
 #' @param plain_text Plain text of the document (pre-stripped HTML)
 #' @param clean_evidence Cleaned evidence fragment
+#' @param min_chars Evidence shorter than this many characters is not matched
 #' @return Named list with \code{text} (matched span from plain_text) and
 #'   \code{tier} (always 1L), or \code{NULL} if no match found.
 #' @keywords internal
-find_best_match_in_html <- function(plain_text, clean_evidence) {
-  if (nchar(clean_evidence) < 10 || nchar(plain_text) < 10) return(NULL)
+find_best_match_in_html <- function(plain_text, clean_evidence, min_chars = 10) {
+  if (nchar(clean_evidence) < max(min_chars, 1L) || nchar(plain_text) == 0L) return(NULL)
 
   # Strip leading/trailing non-alphanumeric chars and lowercase
   core <- gsub("^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", tolower(clean_evidence))
@@ -125,7 +131,11 @@ find_best_match_in_html <- function(plain_text, clean_evidence) {
   # Between tokens require at least one non-alphanumeric separator
   pattern <- paste(flex_tokens, collapse = "[^A-Za-z0-9]+")
 
-  m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
+  m <- regexpr(paste0("(?<![A-Za-z0-9])", pattern, "(?![A-Za-z0-9])"),
+               plain_text, perl = TRUE, ignore.case = TRUE)
+  if (m[[1L]] <= 0L && nchar(core) >= 10L) {
+    m <- regexpr(pattern, plain_text, perl = TRUE, ignore.case = TRUE)
+  }
   if (m[[1L]] <= 0L) return(NULL)
 
   end_pos <- min(m[[1L]] + attr(m, "match.length") - 1L, nchar(plain_text))
@@ -153,18 +163,22 @@ clean_sentence_for_comparison <- function(sentence) {
 #' @param html Rendered HTML string to search within
 #' @param evidence Character vector of evidence sentences to match
 #' @param similarity_threshold Minimum similarity score (default 0.7)
+#' @param min_evidence_chars Evidence shorter than this many characters is
+#'   not highlighted (default 10)
 #' @return List of lists, each with `text`, `bg_color`, `border_color`
 #' @export
-get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
+get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7,
+                                  min_evidence_chars = 10) {
   # Strip HTML once — this is the same plain text mark.js searches in the DOM
   plain_text <- html_to_plain_text(html)
 
   matches <- list()
   for (i in seq_along(evidence)) {
     ev <- evidence[[i]]
-    if (is.null(ev) || is.na(ev) || nchar(ev) < 10) next
+    if (is.null(ev) || is.na(ev) || nchar(ev) < min_evidence_chars) next
     clean_ev <- clean_sentence_for_comparison(ev)
-    match_result <- find_best_match_in_html(plain_text, clean_ev)
+    match_result <- find_best_match_in_html(plain_text, clean_ev,
+                                            min_chars = min_evidence_chars)
     if (!is.null(match_result)) {
       idx <- (length(matches) %% length(HIGHLIGHT_COLORS)) + 1
       matches[[length(matches) + 1]] <- list(
@@ -178,6 +192,38 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
   matches
 }
 
+#' Wrap the first occurrence of matched text in HTML with a span
+#'
+#' Only matches text outside tags, on word boundaries where the matched text
+#' starts or ends with a letter or digit, so short values are not injected
+#' inside a longer word or an attribute.  Matches of 10 or more characters
+#' fall back to ignoring word boundaries, mirroring
+#' \code{find_best_match_in_html()}.
+#'
+#' @param html HTML string
+#' @param matched Text to wrap, as returned by \code{find_best_match_in_html()}
+#' @param span_open Opening span tag
+#' @return Modified HTML, or \code{html} unchanged if the text was not found
+#' @keywords internal
+inject_evidence_span <- function(html, matched, span_open) {
+  literal  <- gsub("([][{}()*+?.\\\\^$|#-])", "\\\\\\1", matched, perl = TRUE)
+  not_tag  <- "(?![^<>]*>)"
+  bounded  <- paste0(if (grepl("^[A-Za-z0-9]", matched)) "(?<![A-Za-z0-9])",
+                     literal,
+                     if (grepl("[A-Za-z0-9]$", matched)) "(?![A-Za-z0-9])",
+                     not_tag)
+  m <- regexpr(bounded, html, perl = TRUE)
+  if (m[[1L]] <= 0L && nchar(matched) >= 10L) {
+    m <- regexpr(paste0(literal, not_tag), html, perl = TRUE)
+  }
+  if (m[[1L]] <= 0L) return(html)
+
+  start <- m[[1L]]
+  end   <- start + attr(m, "match.length") - 1L
+  paste0(substr(html, 1L, start - 1L), span_open, substr(html, start, end),
+         "</span>", substr(html, end + 1L, nchar(html)))
+}
+
 #' Build a pre-injected evidence index for the OCR viewer
 #'
 #' Collects all unique supporting sentences from every row in the extracted
@@ -188,14 +234,22 @@ get_highlight_matches <- function(html, evidence, similarity_threshold = 0.7) {
 #' CSS-class toggle with no further server computation.
 #'
 #' @param html Rendered HTML string (from render_tensorlake_html)
-#' @param extracted_df Data frame containing all_supporting_source_sentences
+#' @param extracted_df Data frame of records
+#' @param evidence_col Column of \code{extracted_df} holding each record's
+#'   evidence: a JSON array of strings, or a single string. If the column is
+#'   absent the index is empty.
+#' @param min_evidence_chars Evidence shorter than this many characters
+#'   (after trimming) is not highlighted. Lowering it is safe for short values
+#'   because matches must fall on word boundaries.
 #' @return Named list: \code{html} (modified HTML), \code{row_map} (list keyed
 #'   by 0-based row index, each element a list of ev_ids), and
 #'   \code{unmatched_by_row} (list keyed by 0-based row index, each element a
 #'   character vector of sentences that could not be located in the document).
 #' @export
-build_evidence_index <- function(html, extracted_df) {
-  if (!"all_supporting_source_sentences" %in% names(extracted_df)) {
+build_evidence_index <- function(html, extracted_df,
+                                 evidence_col = "all_supporting_source_sentences",
+                                 min_evidence_chars = 10) {
+  if (!evidence_col %in% names(extracted_df)) {
     return(list(html = html, row_map = list(), unmatched_by_row = list()))
   }
 
@@ -218,12 +272,13 @@ build_evidence_index <- function(html, extracted_df) {
 
   # Parse sentences per row
   sentences_by_row <- lapply(seq_len(nrow(extracted_df)), function(i) {
-    raw <- extracted_df$all_supporting_source_sentences[[i]]
+    raw <- extracted_df[[evidence_col]][[i]]
     if (is.null(raw) || is.na(raw) || nchar(trimws(raw)) == 0) {
       return(character(0))
     }
-    sents <- tryCatch(jsonlite::fromJSON(raw), error = function(e) as.character(raw))
-    sents[!is.na(sents) & nchar(trimws(sents)) >= 10]
+    sents <- tryCatch(as.character(jsonlite::fromJSON(as.character(raw))),
+                      error = function(e) as.character(raw))
+    sents[!is.na(sents) & nchar(trimws(sents)) >= min_evidence_chars]
   })
 
   # Locate each unique sentence once and inject a span
@@ -234,7 +289,8 @@ build_evidence_index <- function(html, extracted_df) {
       seen <- c(seen, sent)
 
       clean_sent   <- clean_sentence_for_comparison(sent)
-      match_result <- find_best_match_in_html(plain_text, clean_sent)
+      match_result <- find_best_match_in_html(plain_text, clean_sent,
+                                              min_chars = min_evidence_chars)
       if (is.null(match_result)) next
 
       matched <- match_result$text
@@ -245,9 +301,9 @@ build_evidence_index <- function(html, extracted_df) {
       } else {
         ev_id <- ev_id_counter
 
-        span     <- paste0('<span class="ecr-ev" data-ev-id="', ev_id,
-                           '">', matched, "</span>")
-        new_html <- sub(matched, span, modified_html, fixed = TRUE)
+        new_html <- inject_evidence_span(
+          modified_html, matched,
+          paste0('<span class="ecr-ev" data-ev-id="', ev_id, '">'))
 
         # If injection failed (matched text not verbatim in HTML — e.g. spans
         # multiple <td> cells), skip without registering this ev_id so that no

@@ -4,12 +4,25 @@
 \alias{build_evidence_index}
 \title{Build a pre-injected evidence index for the OCR viewer}
 \usage{
-build_evidence_index(html, extracted_df)
+build_evidence_index(
+  html,
+  extracted_df,
+  evidence_col = "all_supporting_source_sentences",
+  min_evidence_chars = 10
+)
 }
 \arguments{
 \item{html}{Rendered HTML string (from render_tensorlake_html)}
 
-\item{extracted_df}{Data frame containing all_supporting_source_sentences}
+\item{extracted_df}{Data frame of records}
+
+\item{evidence_col}{Column of \code{extracted_df} holding each record's
+evidence: a JSON array of strings, or a single string. If the column is
+absent the index is empty.}
+
+\item{min_evidence_chars}{Evidence shorter than this many characters
+(after trimming) is not highlighted. Lowering it is safe for short values
+because matches must fall on word boundaries.}
 }
 \value{
 Named list: \code{html} (modified HTML), \code{row_map} (list keyed

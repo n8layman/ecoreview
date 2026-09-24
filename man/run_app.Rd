@@ -13,6 +13,8 @@ run_app(
   priority_cols = NULL,
   visible_cols = NULL,
   pdf_dir = NULL,
+  evidence_col = "all_supporting_source_sentences",
+  min_evidence_chars = 10,
   ...
 )
 }
@@ -42,6 +44,16 @@ when the \code{.db} file is stored separately from the PDFs or when the app
 is launched from a different working directory. If the path stored in
 the database does not resolve, the app falls back to looking for the
 file's basename here. NULL (default) uses the path stored in the database.}
+
+\item{evidence_col}{Name of the records column whose values are highlighted
+in the OCR viewer when a row is selected: a JSON array of strings, or a
+single string. Use when the extraction schema names its evidence field
+differently. Default \code{"all_supporting_source_sentences"}.}
+
+\item{min_evidence_chars}{Evidence shorter than this many characters is not
+highlighted. Lower it when evidence values are short (e.g. species codes);
+matches must fall on word boundaries, so a short value is not highlighted
+inside a longer word. Default 10.}
 
 \item{...}{Additional arguments passed to shiny::runApp()}
 }
