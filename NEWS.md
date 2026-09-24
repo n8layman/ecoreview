@@ -1,3 +1,9 @@
+# ecoreview 0.1.54
+
+## Bug fixes
+
+- **Metadata panel follows the metadata schema** (#31): the Metadata tab renders one input per field in `metadata_schema.json` (same config search as the schema tab) instead of fixed Title/Authors/Year/DOI/Journal/Vol fields, so databases built with a custom metadata schema (ecoextract#148) no longer fail to load. String arrays are edited one item per line and stored as JSON; other arrays and objects are edited as JSON. Verify saves only the schema fields that changed, and record IDs are rebuilt from `x-record-id-fields` (matching ecoextract) only when one of those fields changed. `first_author_lastname` is now edited directly rather than derived from Authors.
+
 # ecoreview 0.1.53
 
 ## New features
