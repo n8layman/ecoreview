@@ -4,10 +4,17 @@
 \alias{render_tensorlake_html}
 \title{Render tensorlake JSON content to HTML for Shiny display}
 \usage{
-render_tensorlake_html(doc_content)
+render_tensorlake_html(doc_content, ocr_images = NULL)
 }
 \arguments{
 \item{doc_content}{JSON string or parsed list from tensorlake OCR}
+
+\item{ocr_images}{Optional OCR images, as stored in the ecoextract
+\code{documents.ocr_images} column (JSON string or parsed list with one
+entry per page). Each page's image placeholders (\code{![...](<id>)})
+are replaced with the stored image of the same \code{id} on that page.
+Placeholders with no stored image are shown as plain text rather than a
+broken image.}
 }
 \value{
 HTML string for display in Shiny htmlOutput
