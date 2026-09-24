@@ -3,15 +3,15 @@
 #' Render tensorlake JSON content to HTML for Shiny display
 #'
 #' @param doc_content JSON string or parsed list from tensorlake OCR
-#' @param ocr_images Optional OCR images, as stored in the ecoextract
-#'   \code{documents.ocr_images} column (JSON string or parsed list with one
-#'   entry per page). Each page's image placeholders (\code{![...](<id>)})
-#'   are replaced with the stored image of the same \code{id} on that page.
-#'   Placeholders with no stored image are shown as plain text rather than a
+#' @param page_markdown Optional character vector of page markdown, one
+#'   element per page, used in place of each page's stored markdown. Pass
+#'   \code{ecoextract::get_ocr_pages()} output so stored OCR images are
+#'   embedded. Tables are still taken from \code{doc_content}. Any image
+#'   placeholder left without an image is shown as plain text rather than a
 #'   broken image.
 #' @return HTML string for display in Shiny htmlOutput
 #' @export
-render_tensorlake_html <- function(doc_content, ocr_images = NULL) {
+render_tensorlake_html <- function(doc_content, page_markdown = NULL) {
   if (is.null(doc_content) || (is.character(doc_content) && doc_content == "") ||
       (is.character(doc_content) && is.na(doc_content))) {
     return("<div style='color: #999; padding: 20px; text-align: center;'>No OCR content available</div>")
@@ -26,8 +26,6 @@ render_tensorlake_html <- function(doc_content, ocr_images = NULL) {
       return(list(list(text = doc_content)))
     })
   }
-
-  images_data <- parse_ocr_images(ocr_images)
 
   # Helper: convert page elements to Markdown
   build_page_markdown <- function(page) {
@@ -95,10 +93,11 @@ render_tensorlake_html <- function(doc_content, ocr_images = NULL) {
   # Build HTML per page
   pages_html <- vapply(seq_along(doc_content), function(page_idx) {
     page <- doc_content[[page_idx]]
-    page_md <- build_page_markdown(page)
-    if (!is.null(images_data) && page_idx <= length(images_data$pages)) {
-      page_md <- embed_page_images(page_md, images_data$pages[[page_idx]]$images)
+    if (!is.null(page_markdown) && length(page_markdown) == length(doc_content) &&
+        !is.null(page$markdown)) {
+      page$markdown <- page_markdown[[page_idx]]
     }
+    page_md <- build_page_markdown(page)
     # Convert LaTeX-style superscripts used by Mistral OCR (e.g. ^{a}) to HTML
     page_md <- gsub("\\^\\{([^}]*)\\}", "<sup>\\1</sup>", page_md)
     md_html <- tryCatch({
@@ -143,48 +142,6 @@ render_tensorlake_html <- function(doc_content, ocr_images = NULL) {
 
   # Return combined HTML
   paste(pages_html, collapse = "\n")
-}
-
-#' Parse stored OCR images (internal)
-#'
-#' @param ocr_images JSON string or parsed list from \code{documents.ocr_images}
-#' @return Parsed list with a \code{pages} element, or NULL
-#' @keywords internal
-parse_ocr_images <- function(ocr_images) {
-  if (is.null(ocr_images) || length(ocr_images) == 0L) return(NULL)
-  if (is.character(ocr_images)) {
-    if (is.na(ocr_images[1]) || !nzchar(ocr_images[1])) return(NULL)
-    ocr_images <- tryCatch(jsonlite::fromJSON(ocr_images[1], simplifyVector = FALSE),
-                           error = function(e) NULL)
-  }
-  if (!is.list(ocr_images) || length(ocr_images$pages) == 0L) return(NULL)
-  ocr_images
-}
-
-#' Embed one page's stored images in its markdown (internal)
-#'
-#' Replaces each placeholder whose link target is a stored image's \code{id}
-#' with an \code{<img>} tag holding that image's data. Images are matched by
-#' \code{id}, not by position: Mistral numbers image ids across the whole
-#' document, so a page's first image is not necessarily \code{img-0}.
-#'
-#' @param page_md Markdown for one page
-#' @param images The page's \code{images} list from \code{ocr_images}, each
-#'   with \code{id} and \code{image_base64}
-#' @return Markdown with placeholders replaced
-#' @keywords internal
-embed_page_images <- function(page_md, images) {
-  for (img in images) {
-    id <- img$id
-    data <- img$image_base64
-    if (is.null(id) || is.null(data) || !nzchar(id) || !nzchar(data)) next
-    if (!grepl("^data:image/", data)) data <- paste0("data:image/png;base64,", data)
-    pattern <- paste0("!\\[[^]]*\\]\\(", gsub("([][{}()*+?.\\\\^$|#-])", "\\\\\\1", id, perl = TRUE), "\\)")
-    tag <- paste0('<img src="', data, '" alt="', htmltools::htmlEscape(id, attribute = TRUE),
-                  '" style="max-width: 100%; height: auto;" />')
-    page_md <- gsub(pattern, tag, page_md, perl = TRUE)
-  }
-  page_md
 }
 
 #' Show unresolved image placeholders as text (internal)

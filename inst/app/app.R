@@ -629,7 +629,7 @@ server <- function(input, output, session) {
     db_name = NULL,
     db_reload_trigger = 0,
     markdown_text = NULL,
-    ocr_images = NULL,
+    ocr_pages = NULL,
     ocr_response = NULL,
     extracted_df = NULL,
     original_df = NULL,
@@ -1198,8 +1198,8 @@ server <- function(input, output, session) {
           }
 
           tryCatch({
-            # Images first: ocr_base_html() re-renders when markdown_text changes
-            values$ocr_images <- .load_ocr_images(doc_id_int)
+            # Pages first: ocr_base_html() re-renders when markdown_text changes
+            values$ocr_pages <- .load_ocr_pages(doc_id_int)
             values$markdown_text <- ecoextract::get_ocr_markdown(doc_id_int, db_conn = values$db_conn)
           }, error = function(e) NULL)
 
@@ -1272,8 +1272,8 @@ server <- function(input, output, session) {
 
     tryCatch({
       doc_id_int <- as.integer(doc_id)
-      # Images first: ocr_base_html() re-renders when markdown_text changes
-      values$ocr_images <- .load_ocr_images(doc_id_int)
+      # Pages first: ocr_base_html() re-renders when markdown_text changes
+      values$ocr_pages <- .load_ocr_pages(doc_id_int)
       values$markdown_text <- ecoextract::get_ocr_markdown(doc_id_int, db_conn = values$db_conn)
     }, error = function(e) {
       shiny::showNotification(paste("Error loading OCR:", e$message), type = "error")
@@ -1913,21 +1913,19 @@ server <- function(input, output, session) {
   })
 
   # Cache base OCR HTML — only recomputes when a new document loads
-  # Stored OCR images for a document (NULL when the column or value is absent)
-  .load_ocr_images <- function(doc_id_int) {
-    tryCatch({
-      conn <- DBI::dbConnect(RSQLite::SQLite(), values$db_conn)
-      on.exit(DBI::dbDisconnect(conn), add = TRUE)
-      if (!"ocr_images" %in% DBI::dbListFields(conn, "documents")) return(NULL)
-      DBI::dbGetQuery(conn, "SELECT ocr_images FROM documents WHERE document_id = ?",
-                      params = list(doc_id_int))$ocr_images[1]
-    }, error = function(e) NULL)
+  # Page markdown with stored OCR images embedded, from ecoextract >= 0.1.26.
+  # NULL for older ecoextract or OCR without page markdown (e.g. Tensorlake),
+  # in which case the viewer renders the stored markdown without images.
+  .load_ocr_pages <- function(doc_id_int) {
+    get_pages <- .ecoextract_fn("get_ocr_pages")
+    if (is.null(get_pages)) return(NULL)
+    tryCatch(get_pages(doc_id_int, db_conn = values$db_conn), error = function(e) NULL)
   }
 
   ocr_base_html <- shiny::eventReactive(values$markdown_text, {
     shiny::req(values$markdown_text)
     ecoreview::render_tensorlake_html(values$markdown_text,
-                                      ocr_images = shiny::isolate(values$ocr_images))
+                                      page_markdown = shiny::isolate(values$ocr_pages))
   })
 
   # Warn once per session when the records have no evidence column

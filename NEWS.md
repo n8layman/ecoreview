@@ -1,3 +1,9 @@
+# ecoreview 0.1.58
+
+## Improvements
+
+- **OCR viewer images come from ecoextract** (#38 follow-up): the viewer now gets page markdown with embedded images from `ecoextract::get_ocr_pages()` (ecoextract 0.1.26+, which matches images by id since ecoextract#160) instead of embedding them itself. `render_tensorlake_html()` replaces its `ocr_images` argument with `page_markdown` (one element per page), and still inserts Mistral tables from the stored OCR. With an older ecoextract, or OCR without page markdown (Tensorlake), the viewer renders as before and any image placeholder shows as plain text rather than a broken image.
+
 # ecoreview 0.1.57
 
 ## Bug fixes
