@@ -1,3 +1,9 @@
+# ecoreview 0.1.57
+
+## Bug fixes
+
+- **Untouched metadata fields are no longer saved as edits** (#36): Verify skips any metadata input that still shows what was displayed for the stored value, before converting it back to storage form. Previously a string-array field whose items had surrounding whitespace or embedded newlines changed on the display-then-parse round trip (items trimmed or split) and was sent to `save_document()` as an edit, which ecoextract 0.1.25+ records as a reviewer edit and locks against later metadata runs.
+
 # ecoreview 0.1.56
 
 ## Improvements

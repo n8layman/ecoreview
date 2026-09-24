@@ -1583,7 +1583,9 @@ server <- function(input, output, session) {
 
   .meta_same <- function(a, b) {
     if (.meta_is_missing(a) || .meta_is_missing(b)) return(.meta_is_missing(a) && .meta_is_missing(b))
-    identical(as.character(a[1]), as.character(b[1]))
+    # Browsers submit textarea line breaks as \r\n
+    identical(gsub("\r\n", "\n", as.character(a[1]), fixed = TRUE),
+              gsub("\r\n", "\n", as.character(b[1]), fixed = TRUE))
   }
 
   # Schema fields that exist as columns for this document (bibliography is
@@ -1801,8 +1803,11 @@ server <- function(input, output, session) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), values$db_conn)
       on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-      # Save only the schema fields the reviewer changed. A NULL input means the
-      # field was never rendered, so its stored value is left alone.
+      # Save only the schema fields the reviewer changed. ecoextract records every
+      # field it receives with a new value as a reviewer edit and locks it, so an
+      # input still showing what was displayed is skipped before conversion: the
+      # display-then-parse round trip is lossy (array items are trimmed and split
+      # on newlines). A NULL input means the field was never rendered.
       schema <- metadata_schema()
       orig <- values$doc_metadata_original
       fields <- .meta_editable_fields(schema, orig)
@@ -1810,6 +1815,7 @@ server <- function(input, output, session) {
       for (f in names(fields)) {
         value <- input[[.meta_input_id(f)]]
         if (is.null(value)) next
+        if (.meta_same(value, .meta_display(orig[[f]], fields[[f]]))) next
         new_value <- .meta_storage(f, value, fields[[f]])
         if (!.meta_same(new_value, orig[[f]])) doc_metadata[[f]] <- new_value
       }
