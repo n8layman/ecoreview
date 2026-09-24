@@ -3,6 +3,9 @@
 
 # Get configuration from options (set by run_app())
 app_title <- getOption("ecoreview.title", "EcoReview: Data Validation")
+# Records column highlighted in the OCR viewer, and the shortest evidence highlighted
+evidence_col <- getOption("ecoreview.evidence_col", "all_supporting_source_sentences")
+min_evidence_chars <- getOption("ecoreview.min_evidence_chars", 10)
 app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
@@ -1902,6 +1905,9 @@ server <- function(input, output, session) {
     ecoreview::render_tensorlake_html(values$markdown_text)
   })
 
+  # Warn once per session when the records have no evidence column
+  evidence_col_warned <- FALSE
+
   # Holds the HTML with evidence spans injected (updated once per document)
   ocr_display_html <- shiny::reactiveVal(NULL)
 
@@ -1932,8 +1938,16 @@ server <- function(input, output, session) {
     session$onFlushed(function() {
       # Skip if the user switched to a different document before we ran
       if (!identical(shiny::isolate(values$document_id), doc_id)) return()
+      if (!evidence_col %in% names(df) && !evidence_col_warned) {
+        evidence_col_warned <<- TRUE
+        shiny::showNotification(
+          paste0("No '", evidence_col, "' column in these records, so nothing is highlighted ",
+                 "in the OCR text. Set evidence_col in run_app() to the evidence column."),
+          type = "warning", duration = 10)
+      }
       result <- tryCatch(
-        ecoreview::build_evidence_index(base_html, df),
+        ecoreview::build_evidence_index(base_html, df, evidence_col = evidence_col,
+                                        min_evidence_chars = min_evidence_chars),
         error = function(e) list(html = base_html, row_map = list(),
                                  unmatched_by_row = list(),
                                  sentence_tier_map = list())
@@ -2109,11 +2123,13 @@ server <- function(input, output, session) {
         # Sentences column edited — rebuild OCR evidence index so highlighting
         # reflects the new sentences.  Any other column edit leaves the OCR
         # HTML untouched.
-        if (isTRUE(col_name == "all_supporting_source_sentences")) {
+        if (isTRUE(col_name == evidence_col)) {
           base_html <- shiny::isolate(ocr_base_html())
           if (!is.null(base_html)) {
             ocr_result <- tryCatch(
-              ecoreview::build_evidence_index(base_html, values$extracted_df),
+              ecoreview::build_evidence_index(base_html, values$extracted_df,
+                                              evidence_col = evidence_col,
+                                              min_evidence_chars = min_evidence_chars),
               error = function(e) list(html = base_html, row_map = list(),
                                        unmatched_by_row = list())
             )
@@ -2147,12 +2163,9 @@ server <- function(input, output, session) {
       if (!is.na(selected_row) && selected_row <= nrow(df)) {
         row_data <- df[selected_row, ]
         sentences <- character(0)
-        if ("all_supporting_source_sentences" %in% names(row_data) &&
-            !is.na(row_data$all_supporting_source_sentences)) {
-          sentences <- tryCatch(
-            jsonlite::fromJSON(row_data$all_supporting_source_sentences),
-            error = function(e) as.character(row_data$all_supporting_source_sentences)
-          )
+        if (evidence_col %in% names(row_data) && !is.na(row_data[[evidence_col]][[1]])) {
+          raw <- as.character(row_data[[evidence_col]][[1]])
+          sentences <- tryCatch(as.character(jsonlite::fromJSON(raw)), error = function(e) raw)
         }
         values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
         should_scroll <- !identical(selected_row, last_scrolled_row)

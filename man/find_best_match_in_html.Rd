@@ -4,12 +4,14 @@
 \alias{find_best_match_in_html}
 \title{Find a matching span in plain text for an evidence fragment}
 \usage{
-find_best_match_in_html(plain_text, clean_evidence)
+find_best_match_in_html(plain_text, clean_evidence, min_chars = 10)
 }
 \arguments{
 \item{plain_text}{Plain text of the document (pre-stripped HTML)}
 
 \item{clean_evidence}{Cleaned evidence fragment}
+
+\item{min_chars}{Evidence shorter than this many characters is not matched}
 }
 \value{
 Named list with \code{text} (matched span from plain_text) and
@@ -22,5 +24,11 @@ punctuation differences ("Table 1: ..." vs "Table 1 ...") are ignored.
 Within each token, \code{[^A-Za-z0-9]*} is inserted between every pair of
 adjacent characters so OCR line-break hyphens ("amphis-tome") match the
 evidence word ("amphistome").  Search is case-insensitive.
+}
+\details{
+The match must start and end on word boundaries, so a short value such as
+"Mus" does not match inside "Musculature".  Evidence of 10 or more
+characters falls back to a match without boundaries, since longer quotes
+can legitimately start or end mid-word.
 }
 \keyword{internal}

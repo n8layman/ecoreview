@@ -1,5 +1,10 @@
 # ecoreview 0.1.54
 
+## New features
+
+- **Configurable evidence column** (#32): `run_app(evidence_col = ...)` sets which records column is highlighted in the OCR viewer (default `all_supporting_source_sentences`), and `min_evidence_chars` sets the shortest evidence highlighted (default 10). `build_evidence_index()` and `get_highlight_matches()` take the same arguments. The app warns once when the records have no such column instead of silently showing no highlights.
+- **Whole-word evidence matching** (#32): evidence must match on word boundaries and outside HTML tags, so a short value like `Mus` no longer highlights inside `Musculature` or an attribute. Evidence of 10+ characters falls back to the previous matching if no whole-word match exists.
+
 ## Bug fixes
 
 - **Metadata panel follows the metadata schema** (#31): the Metadata tab renders one input per field in `metadata_schema.json` (same config search as the schema tab) instead of fixed Title/Authors/Year/DOI/Journal/Vol fields, so databases built with a custom metadata schema (ecoextract#148) no longer fail to load. String arrays are edited one item per line and stored as JSON; other arrays and objects are edited as JSON. Verify saves only the schema fields that changed, and record IDs are rebuilt from `x-record-id-fields` (matching ecoextract) only when one of those fields changed. `first_author_lastname` is now edited directly rather than derived from Authors.
