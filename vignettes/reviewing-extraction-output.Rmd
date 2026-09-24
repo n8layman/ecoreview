@@ -32,7 +32,7 @@ The badge shows `X of Y unreviewed` based on unique, non-NULL document IDs.
 
 The OCR panel shows the markdown text extracted from the paper by ohseer/Mistral. It renders tables, headings, and inline formatting. Use it to cross-check the extracted records against the original source.
 
-**Evidence highlighting:** when you click a row in the records table, sentences from `all_supporting_source_sentences` are highlighted in orange in the OCR panel. Hovering a highlighted sentence shows a tooltip listing all evidence sentences for that row, with a ⚠️ warning on any sentence that could not be located in the OCR text.
+**Evidence highlighting:** when you click a row in the records table, sentences from `all_supporting_source_sentences` are highlighted in orange in the OCR panel. Hovering a highlighted sentence shows a tooltip listing all evidence sentences for that row, with a ⚠️ warning on any sentence that could not be located in the OCR text. Evidence copied from a table row (cells separated by `|`) highlights the matching cells of that row.
 
 **PDF view:** click the **PDF** tab to switch to the embedded PDF viewer. The PDF path is resolved from the database; if it cannot be found, the viewer shows "PDF Not Available." Use `run_review_app(pdf_dir = "path/to/pdfs")` to point the app at a folder of PDFs when they are stored separately from the database.
 

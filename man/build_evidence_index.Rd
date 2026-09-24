@@ -38,3 +38,8 @@ place. Returns the modified HTML (rendered once per document) and a
 row-to-ev-id mapping for the JS client so row switching is a pure
 CSS-class toggle with no further server computation.
 }
+\details{
+Evidence copied from a markdown table row (cells joined with \code{|}) is
+matched to a single \code{<tr>} and each matched cell is wrapped under one
+evidence id; if no row matches, it falls back to sentence matching.
+}

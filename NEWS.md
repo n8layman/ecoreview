@@ -1,3 +1,9 @@
+# ecoreview 0.1.56
+
+## Improvements
+
+- **Table-row evidence is highlighted** (#34): evidence copied from a markdown table row (cells joined with `|`) is matched to a single `<tr>`, and each matched cell is highlighted under one evidence id. The row with the most evidence cells in order wins (at least 75% of cells), preferring exact cell matches; cells of 4+ characters tolerate small OCR differences, while short cells (`pcs`, `CZ`, `male`) must match exactly and are anchored by the rest of the row. Evidence that matches no row falls back to sentence matching, and evidence without `|` is unchanged. On 29 LEMIS shipments (126 records, 825 evidence strings) this raises highlighted records from 71 to 126 and matched strings from 23% to 99%.
+
 # ecoreview 0.1.55
 
 ## Breaking changes (soft)

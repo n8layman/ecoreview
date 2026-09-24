@@ -224,6 +224,141 @@ inject_evidence_span <- function(html, matched, span_open) {
          "</span>", substr(html, end + 1L, nchar(html)))
 }
 
+#' Normalize a table cell for comparison (internal)
+#'
+#' Lowercases and keeps only letters and digits, so punctuation, spacing and
+#' symbols such as checkboxes do not affect matching.
+#'
+#' @param x Character vector of cell text
+#' @return Character vector of normalized cell text
+#' @keywords internal
+normalize_table_cell <- function(x) {
+  gsub("[^a-z0-9]", "", tolower(x))
+}
+
+#' Locate table rows and their cells in HTML (internal)
+#'
+#' Nested tables are not handled.
+#'
+#' @param html HTML string
+#' @return List with \code{cells}, the unique normalized cell texts in the
+#'   document, and \code{rows}, one integer vector per \code{<tr>} giving each
+#'   of its \code{<td>}/\code{<th>} cells in order as an index into \code{cells}
+#' @keywords internal
+parse_table_rows <- function(html) {
+  trs <- regmatches(html, gregexpr("(?s)<tr\\b[^>]*>.*?</tr>", html, perl = TRUE))[[1]]
+  if (length(trs) == 0L) return(list(cells = character(0), rows = list()))
+  inner <- regmatches(trs, gregexpr("(?s)<t[dh](?:\\s[^>]*)?>(.*?)</t[dh]>", trs, perl = TRUE))
+  n_cells <- lengths(inner)
+  flat <- sub("(?s)^<t[dh](?:\\s[^>]*)?>(.*)</t[dh]>$", "\\1", unlist(inner), perl = TRUE)
+  flat <- normalize_table_cell(html_to_plain_text(flat))
+  cells <- unique(flat)
+  list(cells = cells,
+       rows  = unname(split(match(flat, cells), rep(seq_along(trs), n_cells))[as.character(seq_along(trs))]))
+}
+
+#' Match pipe-delimited table-row evidence to a single table row (internal)
+#'
+#' Splits the evidence on \code{|} and finds the \code{<tr>} containing the
+#' most evidence cells in order, preferring exact cell matches. Cells of 4 or
+#' more characters may differ slightly (OCR noise); shorter cells must match
+#' exactly, so short values such as units or country codes are anchored by
+#' the rest of the row rather than matched on their own.
+#'
+#' @param evidence Evidence string containing \code{|}
+#' @param table Output of \code{parse_table_rows()}
+#' @param min_fraction Minimum fraction of evidence cells that must match
+#' @return List with \code{row} (index of the \code{<tr>}) and \code{cells}
+#'   (indices of matched cells in that row), or \code{NULL} if no row matches
+#' @keywords internal
+match_table_row <- function(evidence, table, min_fraction = 0.75) {
+  ev_cells <- normalize_table_cell(strsplit(evidence, "|", fixed = TRUE)[[1]])
+  ev_cells <- ev_cells[nzchar(ev_cells)]
+  if (length(ev_cells) < 2L || length(table$rows) == 0L) return(NULL)
+  needed <- max(2L, ceiling(min_fraction * length(ev_cells)))
+
+  # Score each evidence cell against each unique document cell once:
+  # 2 = exact, 1 = near match (both 4+ characters), 0 = no match
+  u <- table$cells
+  long_u <- nchar(u) >= 4L
+  scores <- t(vapply(ev_cells, function(ev) {
+    sc <- ifelse(u == ev, 2L, 0L)
+    if (nchar(ev) >= 4L) {
+      # A similarity of 0.85 is impossible when lengths differ by more than 15%
+      near <- sc == 0L & long_u & abs(nchar(u) - nchar(ev)) <= 0.15 * pmax(nchar(u), nchar(ev))
+      if (any(near)) {
+        sc[near] <- ifelse(stringdist::stringsim(ev, u[near], method = "osa") >= 0.85, 1L, 0L)
+      }
+    }
+    sc
+  }, integer(length(u))))
+  if (length(u) == 1L) scores <- t(scores)
+  any_hit <- which(colSums(scores > 0L) > 0L)
+
+  # Rank rows by cells matched, then by exact cells, so "002 - 100 pcs." does
+  # not land on an earlier "001 - 100 pcs." row through a near match
+  best <- NULL
+  for (k in seq_along(table$rows)) {
+    row_idx <- table$rows[[k]]
+    if (length(row_idx) < needed || sum(row_idx %in% any_hit) < min(needed, length(row_idx))) next
+    row_scores <- scores[, row_idx, drop = FALSE]
+    matched <- integer(0)
+    exact <- 0L
+    pos <- 1L
+    for (e in seq_along(ev_cells)) {
+      if (pos > length(row_idx)) break
+      sc <- row_scores[e, pos:length(row_idx)]
+      hit <- if (any(sc == 2L)) which(sc == 2L)[1L] else which(sc == 1L)[1L]
+      if (!is.na(hit)) {
+        idx <- pos + hit - 1L
+        matched <- c(matched, idx)
+        exact <- exact + (sc[[hit]] == 2L)
+        pos <- idx + 1L
+      }
+    }
+    if (length(matched) >= needed &&
+        (is.null(best) || length(matched) > length(best$cells) ||
+           (length(matched) == length(best$cells) && exact > best$exact))) {
+      best <- list(row = k, cells = matched, exact = exact)
+      if (exact == length(ev_cells)) break
+    }
+  }
+  if (!is.null(best)) best$exact <- NULL
+  best
+}
+
+#' Wrap cells of one table row with evidence spans (internal)
+#'
+#' @param html HTML string
+#' @param row Index of the \code{<tr>} in \code{html}
+#' @param cells Indices of the cells in that row to wrap
+#' @param span_open Opening span tag
+#' @return Modified HTML
+#' @keywords internal
+inject_row_spans <- function(html, row, cells, span_open) {
+  # Byte offsets: character offsets are very slow on long non-ASCII HTML
+  tr_m <- gregexpr("(?s)<tr\\b[^>]*>.*?</tr>", html, perl = TRUE, useBytes = TRUE)
+  trs  <- regmatches(html, tr_m)[[1]]
+  tr   <- trs[[row]]
+  Encoding(tr) <- "UTF-8"
+
+  cell_m   <- gregexpr("(?s)(<t[dh](?:\\s[^>]*)?>)(.*?)(</t[dh]>)", tr, perl = TRUE)[[1]]
+  in_start <- attr(cell_m, "capture.start")[, 2]
+  in_len   <- attr(cell_m, "capture.length")[, 2]
+  # Splice from the last cell back so earlier positions stay valid
+  for (j in rev(cells)) {
+    if (in_len[[j]] == 0L) next
+    a  <- in_start[[j]]
+    b  <- a + in_len[[j]] - 1L
+    tr <- paste0(substr(tr, 1L, a - 1L), span_open, substr(tr, a, b), "</span>",
+                 substr(tr, b + 1L, nchar(tr)))
+  }
+  trs[[row]] <- tr
+  regmatches(html, tr_m) <- list(trs)
+  Encoding(html) <- "UTF-8"
+  html
+}
+
 #' Build a pre-injected evidence index for the OCR viewer
 #'
 #' Collects all unique supporting sentences from every row in the extracted
@@ -232,6 +367,10 @@ inject_evidence_span <- function(html, matched, span_open) {
 #' place. Returns the modified HTML (rendered once per document) and a
 #' row-to-ev-id mapping for the JS client so row switching is a pure
 #' CSS-class toggle with no further server computation.
+#'
+#' Evidence copied from a markdown table row (cells joined with \code{|}) is
+#' matched to a single \code{<tr>} and each matched cell is wrapped under one
+#' evidence id; if no row matches, it falls back to sentence matching.
 #'
 #' @param html Rendered HTML string (from render_tensorlake_html)
 #' @param extracted_df Data frame of records
@@ -263,6 +402,7 @@ build_evidence_index <- function(html, extracted_df,
   # fixed-string span injection from finding the matched plain text.
   modified_html <- gsub("</?(?:strong|em|b|i)(?:\\s[^>]*)?>", "", modified_html, perl = TRUE)
   plain_text    <- html_to_plain_text(modified_html)
+  table_rows    <- NULL  # parsed lazily, only when row evidence is present
 
   # sentence text -> ev_id  (first unique matched text wins)
   sentence_to_id <- list()
@@ -287,6 +427,27 @@ build_evidence_index <- function(html, extracted_df,
     for (sent in row_sents) {
       if (sent %in% seen) next
       seen <- c(seen, sent)
+
+      # Table-row evidence: anchor all cells to one <tr>
+      if (grepl("|", sent, fixed = TRUE)) {
+        if (is.null(table_rows)) table_rows <- parse_table_rows(modified_html)
+        row_match <- match_table_row(sent, table_rows)
+        if (!is.null(row_match)) {
+          key <- paste0("\u0001tr", row_match$row, ":", paste(row_match$cells, collapse = ","))
+          if (!is.null(matched_to_id[[key]])) {
+            sentence_to_id[[sent]] <- matched_to_id[[key]]
+          } else {
+            ev_id <- ev_id_counter
+            modified_html <- inject_row_spans(
+              modified_html, row_match$row, row_match$cells,
+              paste0('<span class="ecr-ev" data-ev-id="', ev_id, '">'))
+            ev_id_counter        <- ev_id_counter + 1L
+            matched_to_id[[key]] <- ev_id
+            sentence_to_id[[sent]] <- ev_id
+          }
+          next
+        }
+      }
 
       clean_sent   <- clean_sentence_for_comparison(sent)
       match_result <- find_best_match_in_html(plain_text, clean_sent,
