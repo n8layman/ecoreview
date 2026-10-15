@@ -8,7 +8,6 @@ rollup_records(
   records,
   by,
   sum = character(0),
-  concat = character(0),
   evidence_col = "all_supporting_source_sentences"
 )
 }
@@ -19,9 +18,6 @@ rollup_records(
 \item{by}{Character vector of columns that define a group within a document.}
 
 \item{sum}{Character vector of numeric columns to sum within a group.}
-
-\item{concat}{Character vector of free-text columns whose entries are
-concatenated rather than flagged as mixed.}
 
 \item{evidence_col}{Name of the evidence column (a JSON array of strings, or
 a single string) whose values are combined across members.}
@@ -34,26 +30,22 @@ row numbers of its members in \code{records}.
 \description{
 Groups each document's records by caller-supplied key columns and sums the
 named numeric columns. The granular records are not changed; the result is
-a read-only summary computed from them.
+a read-only summary computed from them. Nothing is assumed about the
+extraction schema beyond the columns named here.
 }
 \details{
 For each group, columns are filled as follows:
 \itemize{
 \item \code{document_id} and \code{by} columns: the group's values.
-\item \code{n_records}: the number of records in the group.
 \item \code{sum} columns: the sum of the members' values (\code{NA} only
 when every member is \code{NA}).
 \item \code{evidence_col}: the union of every member's evidence, as a
 JSON array, so evidence highlighting still finds every source line.
-\item \code{concat} columns (free text such as notes): the members'
-distinct non-empty entries joined with \code{" | "}.
-\item \code{record_id}: the members' record ids joined with \code{"; "}.
-\item Logical columns and \code{added_by_user}: a count such as
-\code{"2 of 3"}.
 \item Every other column: the shared value when members agree, otherwise
-every distinct value listed as \code{"mixed: a; b"}. Differing values
-are never collapsed to one.
+the distinct values joined with \code{" | "}.
+\item \code{n_records}, added last: the number of records in the group.
 }
-Soft-deleted records (non-missing \code{deleted_by_user}) are left out, and
-the \code{id} and \code{deleted_by_user} columns are dropped.
+Columns keep their order in \code{records}. Soft-deleted records
+(non-missing \code{deleted_by_user}) are left out, and the \code{id} and
+\code{deleted_by_user} columns are dropped.
 }

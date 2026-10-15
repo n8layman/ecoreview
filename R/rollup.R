@@ -4,34 +4,28 @@
 #'
 #' Groups each document's records by caller-supplied key columns and sums the
 #' named numeric columns. The granular records are not changed; the result is
-#' a read-only summary computed from them.
+#' a read-only summary computed from them. Nothing is assumed about the
+#' extraction schema beyond the columns named here.
 #'
 #' For each group, columns are filled as follows:
 #' \itemize{
 #'   \item \code{document_id} and \code{by} columns: the group's values.
-#'   \item \code{n_records}: the number of records in the group.
 #'   \item \code{sum} columns: the sum of the members' values (\code{NA} only
 #'     when every member is \code{NA}).
 #'   \item \code{evidence_col}: the union of every member's evidence, as a
 #'     JSON array, so evidence highlighting still finds every source line.
-#'   \item \code{concat} columns (free text such as notes): the members'
-#'     distinct non-empty entries joined with \code{" | "}.
-#'   \item \code{record_id}: the members' record ids joined with \code{"; "}.
-#'   \item Logical columns and \code{added_by_user}: a count such as
-#'     \code{"2 of 3"}.
 #'   \item Every other column: the shared value when members agree, otherwise
-#'     every distinct value listed as \code{"mixed: a; b"}. Differing values
-#'     are never collapsed to one.
+#'     the distinct values joined with \code{" | "}.
+#'   \item \code{n_records}, added last: the number of records in the group.
 #' }
-#' Soft-deleted records (non-missing \code{deleted_by_user}) are left out, and
-#' the \code{id} and \code{deleted_by_user} columns are dropped.
+#' Columns keep their order in \code{records}. Soft-deleted records
+#' (non-missing \code{deleted_by_user}) are left out, and the \code{id} and
+#' \code{deleted_by_user} columns are dropped.
 #'
 #' @param records Data frame of records, as returned by
 #'   \code{ecoextract::get_records()}.
 #' @param by Character vector of columns that define a group within a document.
 #' @param sum Character vector of numeric columns to sum within a group.
-#' @param concat Character vector of free-text columns whose entries are
-#'   concatenated rather than flagged as mixed.
 #' @param evidence_col Name of the evidence column (a JSON array of strings, or
 #'   a single string) whose values are combined across members.
 #' @return A data frame with one row per group, in order of each group's first
@@ -39,7 +33,6 @@
 #'   row numbers of its members in \code{records}.
 #' @export
 rollup_records <- function(records, by, sum = character(0),
-                           concat = character(0),
                            evidence_col = "all_supporting_source_sentences") {
   by <- as.character(by)
   sum <- setdiff(as.character(sum), by)
@@ -70,11 +63,9 @@ rollup_records <- function(records, by, sum = character(0),
   groups <- unname(split(seq_len(nrow(live)), factor(key_strings, levels = unique(key_strings))))
   first_rows <- vapply(groups, `[`, integer(1), 1L)
 
-  out <- live[first_rows, keys, drop = FALSE]
-  out$n_records <- lengths(groups)
-
-  other_cols <- setdiff(names(live), c(keys, "id", "deleted_by_user"))
-  for (col in other_cols) {
+  out_cols <- setdiff(names(live), c("id", "deleted_by_user"))
+  out <- live[first_rows, out_cols, drop = FALSE]
+  for (col in setdiff(out_cols, keys)) {
     x <- live[[col]]
     out[[col]] <- if (col %in% sum) {
       vapply(groups, function(g) {
@@ -82,44 +73,28 @@ rollup_records <- function(records, by, sum = character(0),
       }, numeric(1))
     } else if (identical(col, evidence_col)) {
       vapply(groups, function(g) .rollup_evidence(x[g]), character(1))
-    } else if (col %in% concat) {
-      vapply(groups, function(g) .rollup_concat(x[g], " | "), character(1))
-    } else if (identical(col, "record_id")) {
-      vapply(groups, function(g) .rollup_concat(x[g], "; "), character(1))
-    } else if (is.logical(x) || identical(col, "added_by_user")) {
-      flag <- if (is.logical(x)) x else !is.na(x) & x == 1
-      vapply(groups, function(g) {
-        sprintf("%d of %d", base::sum(flag[g], na.rm = TRUE), length(g))
-      }, character(1))
     } else {
       .rollup_shared(x, groups)
     }
   }
+  out$n_records <- lengths(groups)
 
   rownames(out) <- NULL
-  out <- out[, c(keys, "n_records", other_cols), drop = FALSE]
   attr(out, "member_rows") <- lapply(groups, function(g) row_nums[g])
   out
 }
 
 # Shared value when members agree (keeping the column's type), otherwise
-# every distinct value as "mixed: a; b".
+# the distinct values joined with " | ".
 .rollup_shared <- function(x, groups) {
   vals <- lapply(groups, function(g) unique(x[g]))
   if (all(lengths(vals) == 1L)) {
     return(x[vapply(groups, `[`, integer(1), 1L)])
   }
   vapply(vals, function(v) {
-    v <- ifelse(is.na(v), "NA", as.character(v))
-    if (length(v) == 1L) v else paste0("mixed: ", paste(v, collapse = "; "))
+    if (length(v) == 1L) return(as.character(v))
+    paste(ifelse(is.na(v), "NA", as.character(v)), collapse = " | ")
   }, character(1))
-}
-
-# Distinct non-empty entries joined with sep, NA when there are none.
-.rollup_concat <- function(x, sep) {
-  x <- unique(as.character(x[!is.na(x)]))
-  x <- x[nzchar(trimws(x))]
-  if (length(x) == 0) NA_character_ else paste(x, collapse = sep)
 }
 
 # Union of members' evidence as a JSON array, NA when there is none.
