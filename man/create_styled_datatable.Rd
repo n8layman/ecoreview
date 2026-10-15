@@ -4,7 +4,12 @@
 \alias{create_styled_datatable}
 \title{Create a styled DataTable with consistent options}
 \usage{
-create_styled_datatable(data, height = "600px", disable_cols = character(0))
+create_styled_datatable(
+  data,
+  height = "600px",
+  disable_cols = character(0),
+  editable = TRUE
+)
 }
 \arguments{
 \item{data}{Dataframe to display}
@@ -12,6 +17,8 @@ create_styled_datatable(data, height = "600px", disable_cols = character(0))
 \item{height}{Table height (default: "600px")}
 
 \item{disable_cols}{Character vector of column names to make non-editable}
+
+\item{editable}{If FALSE, no cell can be edited (e.g. a rolled-up view)}
 }
 \value{
 Styled DT::datatable object

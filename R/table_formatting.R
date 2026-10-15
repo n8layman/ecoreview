@@ -5,13 +5,17 @@
 #' @param data Dataframe to display
 #' @param height Table height (default: "600px")
 #' @param disable_cols Character vector of column names to make non-editable
+#' @param editable If FALSE, no cell can be edited (e.g. a rolled-up view)
 #' @return Styled DT::datatable object
 #' @export
 create_styled_datatable <- function(data, height = "600px",
-                                    disable_cols = character(0)) {
+                                    disable_cols = character(0),
+                                    editable = TRUE) {
   disabled_indices <- which(names(data) %in% disable_cols) - 1L  # 0-based
 
-  editable <- if (length(disabled_indices) > 0) {
+  editable <- if (!editable) {
+    FALSE
+  } else if (length(disabled_indices) > 0) {
     list(target = "cell", disable = list(columns = disabled_indices))
   } else {
     list(target = "cell")
@@ -45,7 +49,7 @@ create_styled_datatable <- function(data, height = "600px",
           "    $(td).on('mouseenter', function(e) {",
           "      timer = setTimeout(function() {",
           "        if (sentences !== null) {",
-          "          var unmatched = (typeof ecrUnmatchedByRow !== 'undefined' && ecrUnmatchedByRow[String(row)]) ? ecrUnmatchedByRow[String(row)] : [];",
+          "          var unmatched = (typeof ecrUnmatchedFor === 'function') ? ecrUnmatchedFor(row) : [];",
           "          var unmatchedSet = {};",
           "          unmatched.forEach(function(s) { unmatchedSet[String(s)] = true; });",
           "          var html = '<ol style=\"margin:4px 0;padding-left:18px;\">';",

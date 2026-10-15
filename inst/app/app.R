@@ -11,6 +11,11 @@ export_records_with_metadata <- isTRUE(getOption("ecoreview.export_records_with_
 app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
+# Optional rolled-up view: group each document's records by these columns
+rollup_by <- getOption("ecoreview.rollup_by", NULL)
+rollup_sum <- getOption("ecoreview.rollup_sum", character(0))
+rollup_concat <- getOption("ecoreview.rollup_concat", character(0))
+rollup_label <- getOption("ecoreview.rollup_label", "Roll up rows")
 
 # Database path: optionally pre-set via run_review_app(db_path = ...)
 db_path  <- getOption("ecoreview.db_path", "")
@@ -271,6 +276,20 @@ var ecrUnmatchedByRow = {};
 var ecrSentenceTierMap = {};
 var ecrCurrentSentences = [];
 var ecrCurrentUnmatched = [];
+// Rolled-up view: table row -> member record rows (0-based); null when off
+var ecrRollupMembers = null;
+
+Shiny.addCustomMessageHandler('setRollupMembers', function(data) {
+  ecrRollupMembers = data.members || null;
+});
+
+// Evidence not found in the OCR text for a table row (all members when rolled up)
+function ecrUnmatchedFor(row) {
+  var rows = ecrRollupMembers ? (ecrRollupMembers[row] || []) : [row];
+  var out = [];
+  rows.forEach(function(r) { out = out.concat(ecrUnmatchedByRow[String(r)] || []); });
+  return out;
+}
 
 Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
   ecrRowMap         = data.row_map           || {};
@@ -301,15 +320,26 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     el.style.boxShadow = '';
   });
 
+  // row_indices (several records, from a rolled-up row) or a single row_index
+  var rows = data.row_indices ||
+    ((data.row_index !== null && data.row_index !== undefined) ? [data.row_index] : []);
   ecrCurrentSentences = data.sentences || [];
-  ecrCurrentUnmatched = (data.row_index !== null && data.row_index !== undefined)
-    ? (ecrUnmatchedByRow[String(data.row_index)] || [])
-    : [];
+  ecrCurrentUnmatched = [];
+  rows.forEach(function(r) {
+    ecrCurrentUnmatched = ecrCurrentUnmatched.concat(ecrUnmatchedByRow[String(r)] || []);
+  });
 
-  if (data.row_index === null || data.row_index === undefined) return;
+  if (rows.length === 0) return;
 
-  // row_map entries are now {id, tier} objects
-  var entries = ecrRowMap[String(data.row_index)] || [];
+  // row_map entries are now {id, tier} objects; a span shared by several
+  // records is highlighted once
+  var entries = [];
+  var seen = {};
+  rows.forEach(function(r) {
+    (ecrRowMap[String(r)] || []).forEach(function(entry) {
+      if (!seen[entry.id]) { seen[entry.id] = true; entries.push(entry); }
+    });
+  });
   entries.forEach(function(entry, colorIdx) {
     var id   = entry.id;
     var tier = entry.tier || 1;
@@ -564,7 +594,11 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     shiny::div(id = "rightPanel", style = "overflow-y: auto; padding-left: 5px;",
       shiny::conditionalPanel("output.documentSelected",
         # Row action buttons
-        shiny::div(style = "display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px;",
+        shiny::div(style = "display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px;",
+          if (length(rollup_by) > 0)
+            shiny::div(class = "rollup-toggle", style = "margin-right: auto;",
+              shiny::tags$style(".rollup-toggle .form-group { margin-bottom: 0; }"),
+              shiny::checkboxInput("rollupToggle", rollup_label, value = FALSE)),
           shiny::actionButton("addRowBtn",
                        label = shiny::HTML('<i class="fa fa-plus"></i> Add Row'),
                        class = "btn-outline-primary btn-sm"),
@@ -622,6 +656,35 @@ server <- function(input, output, session) {
       display_row
     }
   }
+
+  # Rolled-up view: on when rollup_by is set and the toggle is checked
+  rollup_active <- function() {
+    length(rollup_by) > 0 && isTRUE(input$rollupToggle)
+  }
+
+  # Roll up records with the configured columns. Columns missing from the
+  # records are left out of the grouping (with a warning) rather than failing.
+  rollup_warned <- FALSE
+  build_rollup <- function(records) {
+    missing_cols <- setdiff(c(rollup_by, rollup_sum), names(records))
+    if (length(missing_cols) > 0 && !rollup_warned) {
+      rollup_warned <<- TRUE
+      shiny::showNotification(
+        paste0("Rollup columns not found in these records: ",
+               paste(missing_cols, collapse = ", "), ". They are left out of the rollup."),
+        type = "warning", duration = 10)
+    }
+    ecoreview::rollup_records(
+      records,
+      by = intersect(rollup_by, names(records)),
+      sum = intersect(rollup_sum, names(records)),
+      concat = rollup_concat,
+      evidence_col = evidence_col)
+  }
+
+  # Row numbers in extracted_df of the records behind each rolled-up row
+  # (NULL when the table shows granular records)
+  rollup_members <- NULL
 
   # Initialize reactive values
   values <- shiny::reactiveValues(
@@ -2002,7 +2065,8 @@ server <- function(input, output, session) {
   # Records CSV export - all records joined with document metadata, wide columns dropped
   output$exportRecordsBtn <- shiny::downloadHandler(
     filename = function() {
-      paste0(export_prefix, "_records_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
+      paste0(export_prefix, if (rollup_active()) "_records_rollup_" else "_records_",
+             format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
     },
     content = function(file) {
       shiny::req(values$db_conn)
@@ -2012,6 +2076,23 @@ server <- function(input, output, session) {
         records <- records[is.na(records$deleted_by_user), , drop = FALSE]
       }
       documents <- ecoextract::get_documents(db_conn = values$db_conn)
+
+      # Rolled-up view on: export the rolled-up table instead
+      if (rollup_active()) {
+        rolled <- build_rollup(process_records(records))
+        attr(rolled, "member_rows") <- NULL
+        doc_cols <- c("document_id", "file_name", "file_path", "reviewed_at",
+                      if (export_records_with_metadata)
+                        setdiff(.export_metadata_cols(documents), names(rolled)))
+        export_data <- rolled |>
+          dplyr::select(-dplyr::any_of(.wide_record_cols)) |>
+          dplyr::left_join(
+            documents |> dplyr::select(dplyr::any_of(doc_cols)),
+            by = "document_id"
+          )
+        readr::write_csv(export_data, file)
+        return(invisible())
+      }
 
       doc_cols <- c("document_id", "file_name", "file_path", "reviewed_at",
                     if (export_records_with_metadata)
@@ -2062,11 +2143,55 @@ server <- function(input, output, session) {
     contentType = "application/x-sqlite3"
   )
 
+  # Rollup toggle: re-render the table, and disable the edit buttons while the
+  # rolled-up view is shown (edits happen in the granular view only)
+  shiny::observeEvent(input$rollupToggle, {
+    for (btn in c("addRowBtn", "deleteRowBtn", "showDeletedBtn")) {
+      shinyjs::toggleState(btn, condition = !rollup_active())
+    }
+    session$sendCustomMessage("highlightEvidenceRow",
+                              list(row_index = NULL, sentences = list(), scroll = FALSE))
+    refresh_table_proxy()
+  }, ignoreInit = TRUE)
+
   # Interactive data table — only re-renders on explicit table_trigger(); cell edits use replaceData
   output$interactiveTable <- DT::renderDataTable(server = FALSE, {
     table_trigger()
     shiny::isolate({
       shiny::req(values$extracted_df)
+
+      rollup_members <<- NULL
+      session$sendCustomMessage("setRollupMembers", list(members = NULL))
+
+      # Rolled-up view: read-only summary recomputed from the current records
+      if (rollup_active()) {
+        rolled <- tryCatch(build_rollup(values$extracted_df), error = function(e) {
+          shiny::showNotification(paste("Could not roll up records:", e$message),
+                                  type = "error", duration = 10)
+          NULL
+        })
+        if (!is.null(rolled)) {
+          if (nrow(rolled) == 0) {
+            return(DT::datatable(
+              data.frame(Message = "No records found for this document"),
+              options = list(dom = 't'),
+              rownames = FALSE
+            ))
+          }
+          rollup_members <<- attr(rolled, "member_rows")
+          session$sendCustomMessage("setRollupMembers", list(
+            members = lapply(rollup_members, function(m) as.list(m - 1L))))
+          # Key columns and the record count first, then the granular view's
+          # column order and visibility
+          ordered_names <- if (!is.null(values$col_order))
+            names(values$extracted_df)[values$col_order + 1] else names(values$extracted_df)
+          ordered_names <- ordered_names[!ordered_names %in% values$hidden_cols]
+          lead <- c(intersect(c("document_id", rollup_by), names(rolled)), "n_records")
+          display_names <- unique(c(lead, intersect(ordered_names, names(rolled))))
+          return(ecoreview::create_styled_datatable(rolled[, display_names, drop = FALSE],
+                                                    height = "600px", editable = FALSE))
+        }
+      }
 
       display_data <- if (!isTRUE(values$show_deleted) && "deleted_by_user" %in% names(values$extracted_df)) {
         values$extracted_df[is.na(values$extracted_df$deleted_by_user), , drop = FALSE]
@@ -2117,6 +2242,8 @@ server <- function(input, output, session) {
   # Handle cell edits
   shiny::observeEvent(input$interactiveTable_cell_edit, {
     shiny::req(values$extracted_df)
+    # The rolled-up view is read-only; never write an edit made there
+    if (!is.null(rollup_members)) return()
     edit_info <- input$interactiveTable_cell_edit
 
     row_num <- display_to_actual_row(edit_info$row)
@@ -2193,7 +2320,31 @@ server <- function(input, output, session) {
   # row and triggering an unwanted scrollIntoView.
   shiny::observeEvent(input$interactiveTable_rows_selected, ignoreNULL = FALSE, {
     selected_rows <- input$interactiveTable_rows_selected
-    if (!is.null(selected_rows) && length(selected_rows) > 0) {
+    if (!is.null(selected_rows) && length(selected_rows) > 0 && !is.null(rollup_members)) {
+      # Rolled-up row: highlight the evidence of every member record
+      df <- shiny::isolate(values$extracted_df)
+      shiny::req(df)
+      members <- rollup_members[[selected_rows[1]]]
+      shiny::req(members)
+      sentences <- character(0)
+      if (evidence_col %in% names(df)) {
+        for (raw in as.character(df[[evidence_col]][members])) {
+          if (is.na(raw)) next
+          sentences <- c(sentences,
+                         tryCatch(as.character(jsonlite::fromJSON(raw)), error = function(e) raw))
+        }
+      }
+      sentences <- unique(sentences)
+      values$selected_evidence <- if (length(sentences) > 0) sentences else NULL
+      scroll_key <- paste0("rollup:", paste(members, collapse = ","))
+      should_scroll <- !identical(scroll_key, last_scrolled_row)
+      last_scrolled_row <<- scroll_key
+      session$sendCustomMessage("highlightEvidenceRow", list(
+        row_indices = as.list(members - 1L),
+        sentences   = as.list(sentences),
+        scroll      = should_scroll
+      ))
+    } else if (!is.null(selected_rows) && length(selected_rows) > 0) {
       df <- shiny::isolate(values$extracted_df)
       shiny::req(df)
       selected_row <- display_to_actual_row(selected_rows[1])
@@ -2224,6 +2375,7 @@ server <- function(input, output, session) {
   # Add row functionality
   shiny::observeEvent(input$addRowBtn, {
     shiny::req(values$extracted_df)
+    if (!is.null(rollup_members)) return()
     new_row <- values$extracted_df[1, ]
     new_row[1, ] <- NA
     new_row$id <- NA_integer_
@@ -2241,6 +2393,7 @@ server <- function(input, output, session) {
   # Delete row functionality
   shiny::observeEvent(input$deleteRowBtn, {
     shiny::req(values$extracted_df)
+    if (!is.null(rollup_members)) return()
     selected_rows <- input$interactiveTable_rows_selected
     n <- length(selected_rows)
     if (n == 0) {
@@ -2279,6 +2432,7 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$confirmBulkDeleteBtn, {
     shiny::removeModal()
     shiny::req(values$extracted_df)
+    if (!is.null(rollup_members)) return()
     selected_rows <- input$interactiveTable_rows_selected
     if (length(selected_rows) == 0) return()
 

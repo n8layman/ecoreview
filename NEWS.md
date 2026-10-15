@@ -1,3 +1,10 @@
+# ecoreview 0.1.59
+
+## New features
+
+- **Optional rolled-up view of the records table** (#39): `run_review_app()` gains `rollup_by`, `rollup_sum`, `rollup_concat` and `rollup_label`. When `rollup_by` is set, a checkbox above the records table switches to a read-only view with one row per document and `rollup_by` combination, built by the new exported `rollup_records()`. Summed columns hold the members' total next to an `n_records` count. The evidence column holds the union of every member's evidence, so selecting a rolled-up row highlights all of its source lines. Columns that differ within a group show every value as `mixed: a; b`. `rollup_concat` columns are joined with ` | `, and flags such as `human_edited` are counted (`2 of 3`). Add, delete and cell edits are disabled while the view is on, and the rollup is recomputed from the current records each time it is shown. With the view on, Export Records CSV exports the rolled-up table. With `rollup_by = NULL` (the default) nothing changes.
+- First unit tests (`tests/testthat/test-rollup.R`).
+
 # ecoreview 0.1.58
 
 ## Improvements
