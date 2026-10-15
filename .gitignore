@@ -22,3 +22,6 @@ www/temp_*.pdf
 
 # Databases
 *.db
+
+# Local notes
+notes/
