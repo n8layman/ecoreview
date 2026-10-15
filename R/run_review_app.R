@@ -34,17 +34,14 @@
 #' @param export_records_with_metadata If TRUE, the Records CSV export also
 #'   includes each record's document metadata columns (the metadata schema's
 #'   fields), giving one flat file. Default FALSE.
-#' @param rollup_by Optional character vector of record columns that define a
-#'   group within one document. When set, a checkbox above the records table
-#'   switches to a read-only rolled-up view with one row per group (see
-#'   \code{\link{rollup_records}()}), and the Records CSV export exports that
-#'   view while it is on. NULL (default) hides the checkbox.
-#' @param rollup_sum Character vector of numeric record columns to sum within
-#'   a group in the rolled-up view.
-#' @param rollup_concat Character vector of free-text record columns (e.g.
-#'   notes) whose entries are concatenated in the rolled-up view instead of
-#'   being flagged as mixed.
-#' @param rollup_label Text for the rolled-up view checkbox.
+#' @param rollup_by Optional character vector of record columns to group by
+#'   at startup. Group columns can also be chosen in the app's Columns modal.
+#'   When any are set, a Group button above the records table switches to a
+#'   read-only view with one row per combination of these columns within the
+#'   document (see \code{\link{rollup_records}()}), and the Records CSV export
+#'   exports that view while it is on. NULL (default) starts with none.
+#' @param rollup_sum Optional character vector of numeric record columns to sum
+#'   within a group at startup. Also set in the Columns modal.
 #' @param ... Additional arguments passed to shiny::runApp()
 #'
 #' @return Launches the Shiny application (does not return)
@@ -67,11 +64,10 @@
 #'                     "Host_Species", "Pathogen_Species")
 #' )
 #'
-#' # Offer a rolled-up view: one row per species and unit, quantities summed
+#' # Start with grouping set: one row per species and unit, quantities summed
 #' run_review_app(
 #'   rollup_by  = c("genus", "species_epithet", "unit"),
-#'   rollup_sum = "quantity",
-#'   rollup_concat = "inconsistencies"
+#'   rollup_sum = "quantity"
 #' )
 #' }
 #'
@@ -90,8 +86,6 @@ run_review_app <- function(
   export_records_with_metadata = FALSE,
   rollup_by = NULL,
   rollup_sum = NULL,
-  rollup_concat = NULL,
-  rollup_label = "Roll up rows",
   ...
 ) {
   # Store configuration in options for the app to access
@@ -113,9 +107,7 @@ run_review_app <- function(
     ecoreview.min_evidence_chars = min_evidence_chars,
     ecoreview.export_records_with_metadata = export_records_with_metadata,
     ecoreview.rollup_by = rollup_by,
-    ecoreview.rollup_sum = rollup_sum,
-    ecoreview.rollup_concat = rollup_concat,
-    ecoreview.rollup_label = rollup_label
+    ecoreview.rollup_sum = rollup_sum
   )
 
   # Find the app directory

@@ -11,11 +11,9 @@ export_records_with_metadata <- isTRUE(getOption("ecoreview.export_records_with_
 app_name <- getOption("ecoreview.app_name", "EcoReview")
 github_url <- getOption("ecoreview.github_url", NULL)
 export_prefix <- getOption("ecoreview.export_prefix", "ecoextract")
-# Optional rolled-up view: group each document's records by these columns
-rollup_by <- getOption("ecoreview.rollup_by", NULL)
-rollup_sum <- getOption("ecoreview.rollup_sum", character(0))
-rollup_concat <- getOption("ecoreview.rollup_concat", character(0))
-rollup_label <- getOption("ecoreview.rollup_label", "Roll up rows")
+# Initial columns for the Group view (also set in the Columns modal)
+rollup_by_default <- getOption("ecoreview.rollup_by", character(0))
+rollup_sum_default <- getOption("ecoreview.rollup_sum", character(0))
 
 # Database path: optionally pre-set via run_review_app(db_path = ...)
 db_path  <- getOption("ecoreview.db_path", "")
@@ -594,11 +592,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     shiny::div(id = "rightPanel", style = "overflow-y: auto; padding-left: 5px;",
       shiny::conditionalPanel("output.documentSelected",
         # Row action buttons
-        shiny::div(style = "display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px;",
-          if (length(rollup_by) > 0)
-            shiny::div(class = "rollup-toggle", style = "margin-right: auto;",
-              shiny::tags$style(".rollup-toggle .form-group { margin-bottom: 0; }"),
-              shiny::checkboxInput("rollupToggle", rollup_label, value = FALSE)),
+        shiny::div(style = "display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px;",
           shiny::actionButton("addRowBtn",
                        label = shiny::HTML('<i class="fa fa-plus"></i> Add Row'),
                        class = "btn-outline-primary btn-sm"),
@@ -608,6 +602,9 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
           shiny::actionButton("showDeletedBtn",
                        label = "Show Deleted",
                        class = "btn-outline-info btn-sm"),
+          shinyjs::hidden(shiny::actionButton("groupBtn",
+                       label = shiny::HTML('<i class="fa fa-layer-group"></i> Group'),
+                       class = "btn-outline-info btn-sm")),
           shiny::actionButton("colMgmtBtn",
                        label = shiny::HTML('<i class="fa fa-columns"></i> Columns'),
                        class = "btn-outline-secondary btn-sm")
@@ -657,28 +654,27 @@ server <- function(input, output, session) {
     }
   }
 
-  # Rolled-up view: on when rollup_by is set and the toggle is checked
+  # Group view: on when group columns are set and the Group button is pressed
   rollup_active <- function() {
-    length(rollup_by) > 0 && isTRUE(input$rollupToggle)
+    length(values$rollup_by) > 0 && isTRUE(values$rollup_on)
   }
 
-  # Roll up records with the configured columns. Columns missing from the
-  # records are left out of the grouping (with a warning) rather than failing.
-  rollup_warned <- FALSE
+  # Columns these records can be grouped by, and numeric columns that can be summed
+  .rollup_choices <- function(records) {
+    setdiff(names(records), c("id", "document_id", "deleted_by_user"))
+  }
+  .rollup_sum_choices <- function(records) {
+    cols <- .rollup_choices(records)
+    cols[vapply(records[cols], is.numeric, logical(1))]
+  }
+
+  # Roll up records with the chosen columns. Chosen columns these records do
+  # not have are left out rather than failing.
   build_rollup <- function(records) {
-    missing_cols <- setdiff(c(rollup_by, rollup_sum), names(records))
-    if (length(missing_cols) > 0 && !rollup_warned) {
-      rollup_warned <<- TRUE
-      shiny::showNotification(
-        paste0("Rollup columns not found in these records: ",
-               paste(missing_cols, collapse = ", "), ". They are left out of the rollup."),
-        type = "warning", duration = 10)
-    }
     ecoreview::rollup_records(
       records,
-      by = intersect(rollup_by, names(records)),
-      sum = intersect(rollup_sum, names(records)),
-      concat = rollup_concat,
+      by = intersect(values$rollup_by, .rollup_choices(records)),
+      sum = intersect(values$rollup_sum, .rollup_sum_choices(records)),
       evidence_col = evidence_col)
   }
 
@@ -701,6 +697,9 @@ server <- function(input, output, session) {
     edit_trigger = 0,
     unsaved_changes = list(),
     show_deleted = FALSE,
+    rollup_by = rollup_by_default,
+    rollup_sum = rollup_sum_default,
+    rollup_on = FALSE,
     col_order = NULL,
     hidden_cols = character(0),
     doc_metadata = NULL,
@@ -2143,16 +2142,31 @@ server <- function(input, output, session) {
     contentType = "application/x-sqlite3"
   )
 
-  # Rollup toggle: re-render the table, and disable the edit buttons while the
-  # rolled-up view is shown (edits happen in the granular view only)
-  shiny::observeEvent(input$rollupToggle, {
+  # Group button: shown only when group columns are set in the Columns modal
+  shiny::observeEvent(values$rollup_by, {
+    has_cols <- length(values$rollup_by) > 0
+    shinyjs::toggle("groupBtn", condition = has_cols)
+    if (!has_cols && isTRUE(values$rollup_on)) set_rollup_on(FALSE)
+  }, ignoreNULL = FALSE)
+
+  shiny::observeEvent(input$groupBtn, {
+    set_rollup_on(!isTRUE(values$rollup_on))
+  })
+
+  # Switch the Group view on or off: re-render the table, and disable the edit
+  # buttons while it is shown (edits happen in the granular view only)
+  set_rollup_on <- function(on) {
+    values$rollup_on <- on
+    shiny::updateActionButton(session, "groupBtn",
+      label = shiny::HTML(if (on) '<i class="fa fa-list"></i> Ungroup'
+                          else '<i class="fa fa-layer-group"></i> Group'))
     for (btn in c("addRowBtn", "deleteRowBtn", "showDeletedBtn")) {
-      shinyjs::toggleState(btn, condition = !rollup_active())
+      shinyjs::toggleState(btn, condition = !on)
     }
     session$sendCustomMessage("highlightEvidenceRow",
                               list(row_index = NULL, sentences = list(), scroll = FALSE))
     refresh_table_proxy()
-  }, ignoreInit = TRUE)
+  }
 
   # Interactive data table — only re-renders on explicit table_trigger(); cell edits use replaceData
   output$interactiveTable <- DT::renderDataTable(server = FALSE, {
@@ -2181,13 +2195,11 @@ server <- function(input, output, session) {
           rollup_members <<- attr(rolled, "member_rows")
           session$sendCustomMessage("setRollupMembers", list(
             members = lapply(rollup_members, function(m) as.list(m - 1L))))
-          # Key columns and the record count first, then the granular view's
-          # column order and visibility
+          # The granular view's column order and visibility, record count last
           ordered_names <- if (!is.null(values$col_order))
             names(values$extracted_df)[values$col_order + 1] else names(values$extracted_df)
           ordered_names <- ordered_names[!ordered_names %in% values$hidden_cols]
-          lead <- c(intersect(c("document_id", rollup_by), names(rolled)), "n_records")
-          display_names <- unique(c(lead, intersect(ordered_names, names(rolled))))
+          display_names <- c(intersect(ordered_names, names(rolled)), "n_records")
           return(ecoreview::create_styled_datatable(rolled[, display_names, drop = FALSE],
                                                     height = "600px", editable = FALSE))
         }
@@ -2508,6 +2520,23 @@ server <- function(input, output, session) {
         shiny::tags$em("Drag columns between zones. Order in Visible = left-to-right in table.")
       ),
       shiny::uiOutput("colMgmtBuckets"),
+      shiny::hr(),
+      shiny::tags$p(shiny::tags$em(
+        "Group: the Group button shows one row per combination of these columns ",
+        "within the document, read-only. Summed columns are totalled; other ",
+        "columns list their distinct values.")),
+      shiny::fluidRow(
+        shiny::column(6, shiny::selectizeInput("rollupByInput", "Group rows by",
+          choices = .rollup_choices(values$extracted_df),
+          selected = intersect(values$rollup_by, .rollup_choices(values$extracted_df)),
+          multiple = TRUE, width = "100%",
+          options = list(plugins = list("remove_button", "drag_drop")))),
+        shiny::column(6, shiny::selectizeInput("rollupSumInput", "Sum within groups",
+          choices = .rollup_sum_choices(values$extracted_df),
+          selected = intersect(values$rollup_sum, .rollup_sum_choices(values$extracted_df)),
+          multiple = TRUE, width = "100%",
+          options = list(plugins = list("remove_button"))))
+      ),
       footer = shiny::tagList(
         shiny::actionButton("showAllColsBtn", "Show All", class = "btn-outline-success btn-sm"),
         shiny::actionButton("hideAllColsBtn", "Hide All", class = "btn-outline-warning btn-sm"),
@@ -2564,6 +2593,9 @@ server <- function(input, output, session) {
     hidden_idx  <- match(hidden,  df_cols) - 1L
     values$col_order  <- c(visible_idx[!is.na(visible_idx)], hidden_idx[!is.na(hidden_idx)])
     values$hidden_cols <- hidden
+    rollup_by <- as.character(input$rollupByInput)
+    values$rollup_sum <- setdiff(as.character(input$rollupSumInput), rollup_by)
+    if (!identical(rollup_by, values$rollup_by)) values$rollup_by <- rollup_by
     table_trigger(table_trigger() + 1)
     shiny::removeModal()
   })
