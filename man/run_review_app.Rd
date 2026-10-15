@@ -17,6 +17,10 @@ run_review_app(
   evidence_col = "all_supporting_source_sentences",
   min_evidence_chars = 10,
   export_records_with_metadata = FALSE,
+  rollup_by = NULL,
+  rollup_sum = NULL,
+  rollup_concat = NULL,
+  rollup_label = "Roll up rows",
   ...
 )
 
@@ -63,6 +67,21 @@ inside a longer word. Default 10.}
 includes each record's document metadata columns (the metadata schema's
 fields), giving one flat file. Default FALSE.}
 
+\item{rollup_by}{Optional character vector of record columns that define a
+group within one document. When set, a checkbox above the records table
+switches to a read-only rolled-up view with one row per group (see
+\code{\link{rollup_records}()}), and the Records CSV export exports that
+view while it is on. NULL (default) hides the checkbox.}
+
+\item{rollup_sum}{Character vector of numeric record columns to sum within
+a group in the rolled-up view.}
+
+\item{rollup_concat}{Character vector of free-text record columns (e.g.
+notes) whose entries are concatenated in the rolled-up view instead of
+being flagged as mixed.}
+
+\item{rollup_label}{Text for the rolled-up view checkbox.}
+
 \item{...}{Additional arguments passed to shiny::runApp()}
 }
 \value{
@@ -92,6 +111,13 @@ run_review_app(
   visible_cols  = c("Pathogen_Name", "Host_Name",
                     "Detection_Result_Direction", "Observation_Type",
                     "Host_Species", "Pathogen_Species")
+)
+
+# Offer a rolled-up view: one row per species and unit, quantities summed
+run_review_app(
+  rollup_by  = c("genus", "species_epithet", "unit"),
+  rollup_sum = "quantity",
+  rollup_concat = "inconsistencies"
 )
 }
 
