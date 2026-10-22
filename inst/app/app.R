@@ -80,6 +80,12 @@ ui <- shiny::fluidPage(
             tryCatch(as.character(packageVersion("ecoextract")), error = function(e) "?")
           )
         ),
+        shiny::tags$a(
+          href = "https://www.gnu.org/licenses/gpl-3.0.html", target = "_blank",
+          style = "font-size: 12px; color: #adb5bd; text-decoration: none;",
+          title = "Free software under GPL-3.0 or later, provided WITHOUT ANY WARRANTY. Click to view the license.",
+          "\u00a9 2026 Nathan Layman \u00b7 GPL-3 \u00b7 No warranty"
+        ),
         if (!is.null(github_url)) {
           shiny::tags$a(href = github_url, target = "_blank",
                  style = "font-size: 14px; color: #6c757d; text-decoration: none;",
