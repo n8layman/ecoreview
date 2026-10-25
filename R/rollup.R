@@ -11,11 +11,14 @@
 #' \itemize{
 #'   \item \code{document_id} and \code{by} columns: the group's values.
 #'   \item \code{sum} columns: the sum of the members' values (\code{NA} only
-#'     when every member is \code{NA}).
-#'   \item \code{evidence_col}: the union of every member's evidence, as a
-#'     JSON array, so evidence highlighting still finds every source line.
-#'   \item Every other column: the shared value when members agree, otherwise
-#'     the distinct values joined with \code{" | "}.
+#'     when every member is \code{NA}). A \code{<col>_values} column follows
+#'     each one, holding every member's value as a JSON array (\code{null}
+#'     for a missing value), in member order.
+#'   \item Every other column: the members' distinct non-missing values as a
+#'     JSON array, \code{NA} when there are none. Values that are themselves
+#'     JSON arrays (such as the evidence column) are merged element by
+#'     element, so the evidence column holds the union of every member's
+#'     evidence and highlighting still finds every source line.
 #'   \item \code{n_records}, added last: the number of records in the group.
 #' }
 #' Columns keep their order in \code{records}. Soft-deleted records
@@ -26,14 +29,11 @@
 #'   \code{ecoextract::get_records()}.
 #' @param by Character vector of columns that define a group within a document.
 #' @param sum Character vector of numeric columns to sum within a group.
-#' @param evidence_col Name of the evidence column (a JSON array of strings, or
-#'   a single string) whose values are combined across members.
 #' @return A data frame with one row per group, in order of each group's first
 #'   record. Attribute \code{"member_rows"} is a list giving, for each group, the
 #'   row numbers of its members in \code{records}.
 #' @export
-rollup_records <- function(records, by, sum = character(0),
-                           evidence_col = "all_supporting_source_sentences") {
+rollup_records <- function(records, by, sum = character(0)) {
   by <- as.character(by)
   sum <- setdiff(as.character(sum), by)
   missing_cols <- setdiff(c(by, sum), names(records))
@@ -63,47 +63,55 @@ rollup_records <- function(records, by, sum = character(0),
   groups <- unname(split(seq_len(nrow(live)), factor(key_strings, levels = unique(key_strings))))
   first_rows <- vapply(groups, `[`, integer(1), 1L)
 
-  out_cols <- setdiff(names(live), c("id", "deleted_by_user"))
-  out <- live[first_rows, out_cols, drop = FALSE]
-  for (col in setdiff(out_cols, keys)) {
+  in_cols <- setdiff(names(live), c("id", "deleted_by_user"))
+  out <- live[first_rows, keys, drop = FALSE]
+  for (col in setdiff(in_cols, keys)) {
     x <- live[[col]]
-    out[[col]] <- if (col %in% sum) {
-      vapply(groups, function(g) {
+    if (col %in% sum) {
+      out[[col]] <- vapply(groups, function(g) {
         if (all(is.na(x[g]))) NA_real_ else base::sum(x[g], na.rm = TRUE)
       }, numeric(1))
-    } else if (identical(col, evidence_col)) {
-      vapply(groups, function(g) .rollup_evidence(x[g]), character(1))
+      out[[paste0(col, "_values")]] <- vapply(groups, function(g) {
+        as.character(jsonlite::toJSON(x[g], na = "null", digits = NA))
+      }, character(1))
     } else {
-      .rollup_shared(x, groups)
+      out[[col]] <- vapply(groups, function(g) .rollup_values(x[g]), character(1))
     }
   }
   out$n_records <- lengths(groups)
+  out <- out[, c(unlist(lapply(in_cols, function(col) {
+    if (col %in% sum) c(col, paste0(col, "_values")) else col
+  })), "n_records"), drop = FALSE]
 
   rownames(out) <- NULL
   attr(out, "member_rows") <- lapply(groups, function(g) row_nums[g])
   out
 }
 
-# Shared value when members agree (keeping the column's type), otherwise
-# the distinct values joined with " | ".
-.rollup_shared <- function(x, groups) {
-  vals <- lapply(groups, function(g) unique(x[g]))
-  if (all(lengths(vals) == 1L)) {
-    return(x[vapply(groups, `[`, integer(1), 1L)])
+# Members' distinct non-missing values as a JSON array, NA when there are
+# none. Character values holding a JSON array of scalars are merged element
+# by element.
+.rollup_values <- function(x) {
+  x <- x[!is.na(x)]
+  if (is.character(x)) {
+    x <- unlist(lapply(x, .rollup_json_elements))
+    x <- x[!is.na(x) & nzchar(x)]
   }
-  vapply(vals, function(v) {
-    if (length(v) == 1L) return(as.character(v))
-    paste(ifelse(is.na(v), "NA", as.character(v)), collapse = " | ")
-  }, character(1))
+  x <- unique(x)
+  if (length(x) == 0) return(NA_character_)
+  as.character(jsonlite::toJSON(x, digits = NA))
 }
 
-# Union of members' evidence as a JSON array, NA when there is none.
-.rollup_evidence <- function(x) {
-  sentences <- unlist(lapply(x[!is.na(x)], function(raw) {
-    parsed <- tryCatch(jsonlite::fromJSON(raw), error = function(e) raw)
-    as.character(parsed)
-  }))
-  sentences <- unique(sentences[!is.na(sentences) & nzchar(sentences)])
-  if (length(sentences) == 0) return(NA_character_)
-  as.character(jsonlite::toJSON(sentences))
+# Elements of a JSON array of scalars, as strings; the value itself otherwise
+.rollup_json_elements <- function(raw) {
+  if (!startsWith(trimws(raw), "[")) return(raw)
+  parsed <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE),
+                     error = function(e) NULL)
+  if (!is.list(parsed) ||
+      !all(vapply(parsed, function(p) is.null(p) || (is.atomic(p) && length(p) == 1L),
+                  logical(1)))) {
+    return(raw)
+  }
+  vapply(parsed, function(p) if (is.null(p)) NA_character_ else as.character(p),
+         character(1))
 }

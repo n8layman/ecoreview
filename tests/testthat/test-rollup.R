@@ -27,16 +27,22 @@ test_that("one row per document and key combination, sums match members", {
   expect_false("deleted_by_user" %in% names(out))
 })
 
-test_that("differing values are all listed, agreeing values kept", {
+test_that("summed columns are followed by every member's value", {
   out <- rollup_records(records, by = c("species", "site"), sum = "count")
-  expect_equal(out$method, c("net | trap", "net", "net"))
-  expect_equal(out$life_stage, c("adult", "juvenile", "adult"))
+  expect_equal(out$count_values, c("[5,7,null]", "[2]", "[4]"))
 })
 
-test_that("agreeing values keep the column type", {
-  out <- rollup_records(records, by = "species", sum = "count")
-  expect_type(out$site, "character")
-  expect_equal(out$site, c("A", "A", "A"))
+test_that("other columns list distinct values as a JSON array", {
+  out <- rollup_records(records, by = c("species", "site"), sum = "count")
+  expect_equal(out$method, c('["net","trap"]', '["net"]', '["net"]'))
+  expect_equal(out$life_stage, c('["adult"]', '["juvenile"]', '["adult"]'))
+})
+
+test_that("JSON array values are merged element by element", {
+  rec <- records
+  rec$method <- c('["net","trap"]', '["trap","seine"]', "net", "[]", "net")
+  out <- rollup_records(rec, by = c("species", "site"), sum = "count")
+  expect_equal(out$method, c('["net","trap","seine"]', '["net"]', '["net"]'))
 })
 
 test_that("evidence is the union of members' evidence", {
@@ -47,14 +53,16 @@ test_that("evidence is the union of members' evidence", {
 
 test_that("other columns list distinct values whatever their type", {
   out <- rollup_records(records, by = c("species", "site"), sum = "count")
-  expect_equal(out$notes, c("small | NA | large", "", NA))
-  expect_equal(out$record_id, c("r1 | r2 | r4", "r3", "r5"))
-  expect_equal(out$human_edited, c("TRUE | FALSE", "FALSE", "FALSE"))
+  expect_equal(out$notes, c('["small","large"]', NA, NA))
+  expect_equal(out$record_id, c('["r1","r2","r4"]', '["r3"]', '["r5"]'))
+  expect_equal(out$human_edited, c("[true,false]", "[false]", "[false]"))
+  expect_equal(out$added_by_user, c("[1]", NA, NA))
 })
 
-test_that("column order is kept, with n_records last", {
+test_that("column order is kept, sum values after their column, n_records last", {
   out <- rollup_records(records, by = c("site", "species"), sum = "count")
   expected <- setdiff(names(records), c("id", "deleted_by_user"))
+  expected <- append(expected, "count_values", after = match("count", expected))
   expect_equal(names(out), c(expected, "n_records"))
 })
 
@@ -65,8 +73,8 @@ test_that("soft-deleted records are left out", {
   expect_equal(out$count[1], 5)
   expect_equal(out$n_records[1], 2L)
   expect_equal(attr(out, "member_rows")[[1]], c(1L, 4L))
-  expect_equal(out$method[1], "net")
-  expect_equal(out$human_edited[1], TRUE)
+  expect_equal(out$method[1], '["net"]')
+  expect_equal(out$human_edited[1], "[true]")
 })
 
 test_that("missing keys group together and all-NA sums stay NA", {

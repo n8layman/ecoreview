@@ -135,44 +135,6 @@ ui <- shiny::fluidPage(
         transition: background-color 0.15s, border 0.15s;
       }
 
-      #ocr-hl-tooltip {
-        position: fixed;
-        background: rgba(33, 37, 41, 0.95);
-        color: #f8f9fa;
-        padding: 10px 14px;
-        border-radius: 6px;
-        font-size: 12.5px;
-        max-width: 420px;
-        z-index: 99999;
-        pointer-events: none;
-        display: none;
-        line-height: 1.6;
-        box-shadow: 0 3px 12px rgba(0,0,0,0.35);
-        white-space: normal;
-      }
-      #ocr-hl-tooltip .tt-label {
-        font-weight: 600;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #adb5bd;
-        margin-bottom: 6px;
-      }
-      #ocr-hl-tooltip ol {
-        margin: 0;
-        padding-left: 18px;
-      }
-      #ocr-hl-tooltip li {
-        margin-bottom: 4px;
-      }
-      #ocr-hl-tooltip.two-col {
-        max-width: 720px;
-      }
-      #ocr-hl-tooltip.two-col ol {
-        column-count: 2;
-        column-gap: 20px;
-      }
-
       /* Sentence detail modal */
       #ecr-sent-modal {
         position: fixed;
@@ -232,6 +194,34 @@ ui <- shiny::fluidPage(
       #ecr-sent-modal-body li {
         margin-bottom: 10px;
       }
+
+      /* The evidence highlight the navigator is on */
+      .ecr-ev-current { outline: 2px solid #343a40; outline-offset: 1px; }
+
+      /* Evidence navigator, pinned to the top right of the paper panel */
+      #ecr-nav {
+        position: fixed;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        gap: 2px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        font-size: 12px;
+        color: #495057;
+        user-select: none;
+      }
+      #ecr-nav button {
+        border: none;
+        background: none;
+        padding: 3px 8px;
+        cursor: pointer;
+        color: #495057;
+      }
+      #ecr-nav button:hover { background: #e9ecef; }
+      #ecr-nav span { padding: 0 2px; font-variant-numeric: tabular-nums; }
 
       /* Always show horizontal scrollbar — webkit height forces classic (non-overlay) mode on macOS */
       .dataTables_scrollBody {
@@ -309,6 +299,7 @@ Shiny.addCustomMessageHandler('setEvidenceIndex', function(data) {
   });
   ecrCurrentSentences = [];
   ecrCurrentUnmatched = [];
+  ecrNavSet([], false);
 });
 
 // ---- Highlight a row's evidence spans ----
@@ -333,7 +324,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     ecrCurrentUnmatched = ecrCurrentUnmatched.concat(ecrUnmatchedByRow[String(r)] || []);
   });
 
-  if (rows.length === 0) return;
+  if (rows.length === 0) { ecrNavSet([], false); return; }
 
   // row_map entries are now {id, tier} objects; a span shared by several
   // records is highlighted once
@@ -361,17 +352,110 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     });
   });
 
-  // Scroll first highlighted span into view — skip when data.scroll === false
-  // (e.g. same-row re-highlight triggered by a cell edit, not a row change)
-  if (data.scroll !== false) {
-    var first = document.querySelector('.ecr-ev-active');
-    if (first) first.scrollIntoView({behavior: 'smooth', block: 'center'});
-  }
+  // Go to the first highlight in the paper — when data.scroll === false
+  // (same-row re-highlight triggered by a cell edit, not a row change) stay put
+  ecrNavSet(entries.map(function(entry) { return entry.id; }), data.scroll !== false);
 });
 
-// ---- Tooltip on highlighted spans + sentence modal ----
+// ---- Step through the selected row's highlights ----
+// Each stop is one piece of evidence (all spans sharing a data-ev-id), in
+// order of where it first appears in the paper.
+var ecrNavStops = [];
+var ecrNavIdx = -1;
+
+function ecrNavSpans(id) {
+  return document.querySelectorAll('[data-ev-id=\"' + id + '\"]');
+}
+
+// Set the stops for a new selection. With go, move to the first; otherwise
+// keep the current piece of evidence if it is still a stop.
+function ecrNavSet(ids, go) {
+  var current = ecrNavIdx >= 0 ? ecrNavStops[ecrNavIdx] : null;
+  var firstSpan = {};
+  ids = ids.filter(function(id) {
+    var spans = ecrNavSpans(id);
+    if (spans.length > 0) firstSpan[id] = spans[0];
+    return spans.length > 0;
+  });
+  ids.sort(function(a, b) {
+    return firstSpan[a].compareDocumentPosition(firstSpan[b]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+  });
+  ecrNavStops = ids;
+  var keep = go ? -1 : ids.indexOf(current);
+  if (keep >= 0) {
+    ecrNavGo(keep, false);
+  } else if (ids.length > 0) {
+    ecrNavGo(0, go);
+  } else {
+    ecrNavIdx = -1;
+    ecrNavMark();
+    ecrNavRender();
+  }
+}
+
+// Go to stop i, wrapping around at either end
+function ecrNavGo(i, scroll) {
+  var n = ecrNavStops.length;
+  if (n === 0) return;
+  ecrNavIdx = ((i % n) + n) % n;
+  ecrNavMark();
+  ecrNavRender();
+  if (scroll) {
+    var span = ecrNavSpans(ecrNavStops[ecrNavIdx])[0];
+    if (span) span.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }
+}
+
+function ecrNavMark() {
+  document.querySelectorAll('.ecr-ev-current').forEach(function(el) {
+    el.classList.remove('ecr-ev-current');
+  });
+  if (ecrNavIdx < 0) return;
+  ecrNavSpans(ecrNavStops[ecrNavIdx]).forEach(function(el) {
+    el.classList.add('ecr-ev-current');
+  });
+}
+
+function ecrNavEl() {
+  var nav = document.getElementById('ecr-nav');
+  if (nav) return nav;
+  nav = document.createElement('div');
+  nav.id = 'ecr-nav';
+  nav.innerHTML =
+    '<button type=\"button\" title=\"Previous highlight\">&#9664;</button>' +
+    '<span title=\"Click a highlight to see all supporting sentences\"></span>' +
+    '<button type=\"button\" title=\"Next highlight\">&#9654;</button>';
+  var buttons = nav.querySelectorAll('button');
+  buttons[0].addEventListener('click', function() { ecrNavGo(ecrNavIdx - 1, true); });
+  buttons[1].addEventListener('click', function() { ecrNavGo(ecrNavIdx + 1, true); });
+  document.body.appendChild(nav);
+  var panel = document.getElementById('leftPanel');
+  if (panel && window.ResizeObserver) new ResizeObserver(ecrNavRender).observe(panel);
+  window.addEventListener('resize', ecrNavRender);
+  window.addEventListener('scroll', ecrNavRender, true);
+  $(document).on('shown.bs.tab', ecrNavRender);
+  return nav;
+}
+
+// Show the counter at the paper panel's top right while the OCR text with
+// highlights is on screen
+function ecrNavRender() {
+  var nav = ecrNavEl();
+  var viewer = document.getElementById('ocrViewer');
+  var panel = document.getElementById('leftPanel');
+  if (ecrNavStops.length === 0 || !viewer || !panel || viewer.offsetParent === null) {
+    nav.style.display = 'none';
+    return;
+  }
+  nav.querySelector('span').textContent = (ecrNavIdx + 1) + ' / ' + ecrNavStops.length;
+  nav.style.display = 'flex';
+  var rect = panel.getBoundingClientRect();
+  nav.style.top = (rect.top + 8) + 'px';
+  nav.style.left = (rect.right - nav.offsetWidth - 24) + 'px';
+}
+
+// ---- Sentence modal on highlighted spans ----
 (function() {
-  var tip = null;
   var sentModal = null;
 
   // Lazily create the sentence detail modal on first use (body must exist)
@@ -408,7 +492,7 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     ecrCurrentSentences.forEach(function(s) {
       var escaped = String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
       if (unmatchedSet[String(s)]) {
-        html += '<li style=\"color:#aaa;font-style:italic\"><span style=\"color:#e09800\" title=\"Not found in OCR text\">\u26a0\ufe0f</span>\u00a0' + escaped + '</li>';
+        html += '<li style=\"color:#aaa;font-style:italic\"><span style=\"color:#e09800\" title=\"Not found in OCR text\">\\u26a0\\ufe0f</span>\\u00a0' + escaped + '</li>';
       } else {
         html += '<li>' + escaped + '</li>';
       }
@@ -416,40 +500,6 @@ Shiny.addCustomMessageHandler('highlightEvidenceRow', function(data) {
     html += '</ol>';
     return html;
   }
-
-  function getTooltip() {
-    if (!tip) {
-      tip = document.createElement('div');
-      tip.id = 'ocr-hl-tooltip';
-      document.body.appendChild(tip);
-    }
-    return tip;
-  }
-
-  document.addEventListener('mouseover', function(e) {
-    var el = e.target.closest('.ecr-ev-active');
-    if (!el || ecrCurrentSentences.length === 0) return;
-    var t = getTooltip();
-    t.className = ecrCurrentSentences.length >= 4 ? 'two-col' : '';
-    t.innerHTML = '<div class=\"tt-label\">Supporting sentences <span style=\"font-weight:400;opacity:0.6;font-style:italic;\">(click to expand)</span></div>' + buildSentenceList();
-    t.style.display = 'block';
-  });
-
-  document.addEventListener('mousemove', function(e) {
-    if (!tip || tip.style.display === 'none') return;
-    var tw = tip.offsetWidth, th = tip.offsetHeight;
-    var x = e.clientX + 14;
-    var y = e.clientY - Math.round(th / 2);
-    if (x + tw > window.innerWidth)  x = e.clientX - tw - 10;
-    if (y < 4) y = 4;
-    if (y + th > window.innerHeight - 4) y = window.innerHeight - th - 4;
-    tip.style.left = x + 'px';
-    tip.style.top  = y + 'px';
-  });
-
-  document.addEventListener('mouseout', function(e) {
-    if (!e.target.closest('.ecr-ev-active') && tip) tip.style.display = 'none';
-  });
 
   // Click a highlighted span to open the scrollable sentence modal
   document.addEventListener('click', function(e) {
@@ -680,8 +730,7 @@ server <- function(input, output, session) {
     ecoreview::rollup_records(
       records,
       by = intersect(values$rollup_by, .rollup_choices(records)),
-      sum = intersect(values$rollup_sum, .rollup_sum_choices(records)),
-      evidence_col = evidence_col)
+      sum = intersect(values$rollup_sum, .rollup_sum_choices(records)))
   }
 
   # Row numbers in extracted_df of the records behind each rolled-up row
@@ -2201,11 +2250,15 @@ server <- function(input, output, session) {
           rollup_members <<- attr(rolled, "member_rows")
           session$sendCustomMessage("setRollupMembers", list(
             members = lapply(rollup_members, function(m) as.list(m - 1L))))
-          # The granular view's column order and visibility, record count last
+          # The granular view's column order and visibility, each summed
+          # column followed by its member values, record count last
           ordered_names <- if (!is.null(values$col_order))
             names(values$extracted_df)[values$col_order + 1] else names(values$extracted_df)
           ordered_names <- ordered_names[!ordered_names %in% values$hidden_cols]
-          display_names <- c(intersect(ordered_names, names(rolled)), "n_records")
+          display_names <- unlist(lapply(intersect(ordered_names, names(rolled)), function(col) {
+            c(col, intersect(paste0(col, "_values"), names(rolled)))
+          }))
+          display_names <- c(display_names, "n_records")
           return(ecoreview::create_styled_datatable(rolled[, display_names, drop = FALSE],
                                                     height = "600px", editable = FALSE))
         }
@@ -2529,14 +2582,15 @@ server <- function(input, output, session) {
       shiny::hr(),
       shiny::tags$p(shiny::tags$em(
         "Group: the Group button shows one row per combination of these columns ",
-        "within the document, read-only. Summed columns are totalled; other ",
-        "columns list their distinct values.")),
+        "within the document, read-only. Summed columns show the total, followed by a ",
+        "_values column listing each record's value; other columns list their ",
+        "distinct values as a JSON array.")),
       shiny::fluidRow(
         shiny::column(6, shiny::selectizeInput("rollupByInput", "Group rows by",
           choices = .rollup_choices(values$extracted_df),
           selected = intersect(values$rollup_by, .rollup_choices(values$extracted_df)),
           multiple = TRUE, width = "100%",
-          options = list(plugins = list("remove_button", "drag_drop")))),
+          options = list(plugins = list("remove_button")))),
         shiny::column(6, shiny::selectizeInput("rollupSumInput", "Sum within groups",
           choices = .rollup_sum_choices(values$extracted_df),
           selected = intersect(values$rollup_sum, .rollup_sum_choices(values$extracted_df)),

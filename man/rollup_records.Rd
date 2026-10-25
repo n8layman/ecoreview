@@ -4,12 +4,7 @@
 \alias{rollup_records}
 \title{Roll up records by key columns}
 \usage{
-rollup_records(
-  records,
-  by,
-  sum = character(0),
-  evidence_col = "all_supporting_source_sentences"
-)
+rollup_records(records, by, sum = character(0))
 }
 \arguments{
 \item{records}{Data frame of records, as returned by
@@ -18,9 +13,6 @@ rollup_records(
 \item{by}{Character vector of columns that define a group within a document.}
 
 \item{sum}{Character vector of numeric columns to sum within a group.}
-
-\item{evidence_col}{Name of the evidence column (a JSON array of strings, or
-a single string) whose values are combined across members.}
 }
 \value{
 A data frame with one row per group, in order of each group's first
@@ -38,11 +30,14 @@ For each group, columns are filled as follows:
 \itemize{
 \item \code{document_id} and \code{by} columns: the group's values.
 \item \code{sum} columns: the sum of the members' values (\code{NA} only
-when every member is \code{NA}).
-\item \code{evidence_col}: the union of every member's evidence, as a
-JSON array, so evidence highlighting still finds every source line.
-\item Every other column: the shared value when members agree, otherwise
-the distinct values joined with \code{" | "}.
+when every member is \code{NA}). A \code{<col>_values} column follows
+each one, holding every member's value as a JSON array (\code{null}
+for a missing value), in member order.
+\item Every other column: the members' distinct non-missing values as a
+JSON array, \code{NA} when there are none. Values that are themselves
+JSON arrays (such as the evidence column) are merged element by
+element, so the evidence column holds the union of every member's
+evidence and highlighting still finds every source line.
 \item \code{n_records}, added last: the number of records in the group.
 }
 Columns keep their order in \code{records}. Soft-deleted records
